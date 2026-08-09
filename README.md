@@ -10,13 +10,16 @@ Works for any college: you enter your own subjects and your own timetable. No ac
 
 ## Download and test
 
-**[⬇ Latest APK — GitHub Releases](https://github.com/aryanjsawant/ProxyMate---University-Attendance-Marker/releases/latest)**
+**[⬇ proxymate-general-arm64.apk](https://github.com/aryanjsawant/ProxyMate---University-Attendance-Marker/raw/master/apk/proxymate-general-arm64.apk)** — 20 MB, start here. Works on any phone from roughly 2017 onward.
 
 | File | Size | Use it if |
 |---|---|---|
-| `app-arm64-v8a-release.apk` | ~19 MB | **Start here.** Any phone from roughly 2017 onward. |
-| `app-release.apk` | ~55 MB | The arm64 one refused to install. Universal, works anywhere. |
-| `app-armeabi-v7a-release.apk` | ~17 MB | Genuinely old 32-bit device. |
+| [`apk/proxymate-general-arm64.apk`](apk/proxymate-general-arm64.apk) | 20 MB | **Start here** — 64-bit ARM, i.e. essentially every current phone. |
+| [`apk/proxymate-general-armeabi-v7a.apk`](apk/proxymate-general-armeabi-v7a.apk) | 17 MB | The arm64 one refused to install (genuinely old 32-bit device). |
+
+From the GitHub web UI: open the file → **Download raw file**.
+
+> These are committed into `apk/` so they can be downloaded straight from the repo. That is a deliberate convenience for testing, not good long-term practice — binaries in git history stay there forever. Once this settles down they belong in a GitHub Release instead, built with `flutter build apk --release --split-per-abi` and attached from `build/app/outputs/flutter-apk/`.
 
 **Installing:** open the file → Android says the source isn't allowed → **Allow from this source** → **Install**. If a "harmful app" screen appears, tap **More details → Install anyway**.
 
