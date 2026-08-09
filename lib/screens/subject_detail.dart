@@ -11,36 +11,33 @@ import 'day_editor.dart';
 /// The full arithmetic for one component, plus every record that isn't a plain
 /// "present" — which is the only part of the history anyone actually scans.
 class SubjectDetailScreen extends ConsumerWidget {
-  final String componentId;
-  const SubjectDetailScreen({super.key, required this.componentId});
+  final String subjectId;
+  const SubjectDetailScreen({super.key, required this.subjectId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appProvider);
-    final stats = ref.watch(statsForProvider(componentId));
-    final course = state.courseForComponent(componentId);
-    final component = state.componentById(componentId);
+    final stats = ref.watch(statsForProvider(subjectId));
+    final subject = state.subjectById(subjectId);
     final colour = context.risk.of(stats.risk);
 
     final exceptions =
         state.records
-            .where((r) => r.componentId == componentId)
+            .where((r) => r.subjectId == subjectId)
             .where((r) => r.status != Status.present)
             .toList()
           ..sort((a, b) => b.date.compareTo(a.date));
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '${course?.shortName ?? ''} ${component?.kind.label ?? ''}',
-        ),
+        title: Text(subject?.name ?? 'Subject'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
         children: [
           _Hero(stats: stats, colour: colour),
           const SizedBox(height: 20),
-          _CountsCard(stats: stats, componentId: componentId),
+          _CountsCard(stats: stats, subjectId: subjectId),
           const SizedBox(height: 16),
           _ProjectionCard(stats: stats),
           const SizedBox(height: 24),
@@ -86,7 +83,7 @@ class SubjectDetailScreen extends ConsumerWidget {
 }
 
 class _Hero extends StatelessWidget {
-  final ComponentStats stats;
+  final SubjectStats stats;
   final Color colour;
   const _Hero({required this.stats, required this.colour});
 
@@ -153,9 +150,9 @@ class _Hero extends StatelessWidget {
 }
 
 class _CountsCard extends ConsumerWidget {
-  final ComponentStats stats;
-  final String componentId;
-  const _CountsCard({required this.stats, required this.componentId});
+  final SubjectStats stats;
+  final String subjectId;
+  const _CountsCard({required this.stats, required this.subjectId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -192,7 +189,7 @@ class _CountsCard extends ConsumerWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Counted in periods, so a 2-hour lab weighs 2.',
+                'One timetable entry counts as one class.',
                 style: TextStyle(
                   fontSize: 11,
                   color: context.colors.onSurfaceVariant,
@@ -209,7 +206,7 @@ class _CountsCard extends ConsumerWidget {
 /// Everything here needs a term end date. Without one the app says so plainly
 /// rather than guessing a semester length.
 class _ProjectionCard extends ConsumerWidget {
-  final ComponentStats stats;
+  final SubjectStats stats;
   const _ProjectionCard({required this.stats});
 
   @override
@@ -343,7 +340,6 @@ class _ExceptionTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appProvider);
     final slot = record.slotId == null ? null : state.slotById(record.slotId!);
-    final period = slot == null ? null : state.periodByIndex(slot.periodIndex);
     final colour = statusColor(context, record.status);
 
     return ListTile(
@@ -356,7 +352,7 @@ class _ExceptionTile extends ConsumerWidget {
       subtitle: Text(
         [
           record.status.label,
-          if (period != null) formatMinutes(period.startMin),
+          if (slot != null && slot.isTimed) formatMinutes(slot.startMin!),
           if (record.slotId == null) 'extra class',
           if (record.units > 1) '${record.units} periods',
           if (record.note != null) record.note!,

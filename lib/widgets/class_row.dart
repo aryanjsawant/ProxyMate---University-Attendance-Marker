@@ -28,21 +28,18 @@ class ClassRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appProvider);
     final slot = occurrence.slot;
-    final component = state.componentById(slot.componentId);
-    final course = state.courseForComponent(slot.componentId);
+    final subject = state.subjectById(slot.subjectId);
     final upcoming = !occurrence.hasElapsedAt(now);
 
     // Until a record exists the row still shows Present, because that is what
     // will be written the moment the class ends. The row is the record.
     final status = record?.status ?? Status.present;
 
+    final room = slot.room ?? subject?.room;
     final subtitle = [
-      if (slot.isTutorial)
-        'Tutorial'
-      else
-        component?.kind.label ?? 'Class',
-      if (slot.units > 1) '${slot.units} periods',
-      if (slot.batch != null) slot.batch!,
+      if (!slot.isTimed) 'No time set',
+      ?room,
+      ?subject?.faculty,
     ].join(' · ');
 
     return InkWell(
@@ -55,7 +52,7 @@ class ClassRow extends ConsumerWidget {
               width: 4,
               height: 40,
               decoration: BoxDecoration(
-                color: Color(course?.color ?? 0xFF64748B)
+                color: Color(subject?.color ?? 0xFF64748B)
                     .withValues(alpha: upcoming ? 0.4 : 1),
                 borderRadius: BorderRadius.circular(2),
               ),
@@ -65,17 +62,18 @@ class ClassRow extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    formatMinutes(occurrence.startPeriod.startMin),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.onSurfaceVariant,
+                  if (slot.isTimed)
+                    Text(
+                      formatMinutes(slot.startMin!),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
+                  if (slot.isTimed) const SizedBox(height: 2),
                   Text(
-                    course?.shortName ?? 'Class',
+                    subject?.name ?? 'Class',
                     style: context.text.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -83,15 +81,16 @@ class ClassRow extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 1),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.colors.onSurfaceVariant,
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.colors.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ],
               ),
             ),
@@ -172,7 +171,7 @@ class ClassDetailSheet extends ConsumerStatefulWidget {
 }
 
 class _ClassDetailSheetState extends ConsumerState<ClassDetailSheet> {
-  late int _units = widget.record?.units ?? widget.occurrence.slot.units;
+  late int _units = widget.record?.units ?? 1;
   late final _noteController = TextEditingController(
     text: widget.record?.note ?? '',
   );
@@ -187,8 +186,7 @@ class _ClassDetailSheetState extends ConsumerState<ClassDetailSheet> {
   Widget build(BuildContext context) {
     final state = ref.watch(appProvider);
     final slot = widget.occurrence.slot;
-    final course = state.courseForComponent(slot.componentId);
-    final component = state.componentById(slot.componentId);
+    final subject = state.subjectById(slot.subjectId);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -202,27 +200,25 @@ class _ClassDetailSheetState extends ConsumerState<ClassDetailSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${course?.shortName ?? 'Class'} · '
-            '${slot.isTutorial ? 'Tutorial' : component?.kind.label ?? ''}',
+            subject?.name ?? 'Class',
             style: context.text.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            '${formatLongDate(widget.occurrence.date)} · '
-            '${widget.occurrence.timeRange}',
+            '${formatLongDate(widget.occurrence.date)} · ${slot.timeLabel}',
             style: TextStyle(color: context.colors.onSurfaceVariant),
           ),
-          if (course?.faculty != null) ...[
+          if (subject?.faculty != null) ...[
             const SizedBox(height: 10),
-            _MetaLine(icon: Icons.person_outline, text: course!.faculty!),
+            _MetaLine(icon: Icons.person_outline, text: subject!.faculty!),
           ],
-          if (slot.room != null || course?.venue != null) ...[
+          if (slot.room != null || subject?.room != null) ...[
             const SizedBox(height: 6),
             _MetaLine(
               icon: Icons.place_outlined,
-              text: slot.room ?? course!.venue!,
+              text: slot.room ?? subject!.room!,
             ),
           ],
           const SizedBox(height: 20),
@@ -337,8 +333,7 @@ class ExtraClassRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appProvider);
-    final course = state.courseForComponent(record.componentId);
-    final component = state.componentById(record.componentId);
+    final subject = state.subjectById(record.subjectId);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -348,7 +343,7 @@ class ExtraClassRow extends ConsumerWidget {
             width: 4,
             height: 40,
             decoration: BoxDecoration(
-              color: Color(course?.color ?? 0xFF64748B),
+              color: Color(subject?.color ?? 0xFF64748B),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -378,15 +373,14 @@ class ExtraClassRow extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  course?.shortName ?? 'Class',
+                  subject?.name ?? 'Class',
                   style: context.text.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   [
-                    component?.kind.label ?? '',
-                    if (record.units > 1) '${record.units} periods',
+                    if (record.units > 1) 'counts ${record.units}',
                     if (record.note != null) record.note!,
                   ].where((e) => e.isNotEmpty).join(' · '),
                   style: TextStyle(

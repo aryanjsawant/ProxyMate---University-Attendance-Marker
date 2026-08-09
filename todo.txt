@@ -1,0 +1,3 @@
+On the starting screen u can tell the user if he wants to work without timetable he can add attendance manually 
+
+update the svnit version and fix that 2 period lab thing

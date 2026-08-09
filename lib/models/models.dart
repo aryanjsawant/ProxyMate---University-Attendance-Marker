@@ -2,253 +2,156 @@ import 'package:flutter/foundation.dart';
 
 import '../logic/dates.dart';
 
-/// One row of the institute's fixed bell schedule. Defined once per install and
-/// then referenced by index, so changing a period's timing moves every class
-/// anchored to it.
-@immutable
-class Period {
-  final int index; // 1..8
-  final int startMin; // minutes from midnight
-  final int endMin;
-
-  const Period({
-    required this.index,
-    required this.startMin,
-    required this.endMin,
-  });
-
-  String get label => 'P$index';
-  String get timeRange => '${formatMinutes(startMin)} – ${formatMinutes(endMin)}';
-
-  Period copyWith({int? index, int? startMin, int? endMin}) => Period(
-    index: index ?? this.index,
-    startMin: startMin ?? this.startMin,
-    endMin: endMin ?? this.endMin,
-  );
-
-  Map<String, dynamic> toJson() => {
-    'index': index,
-    'startMin': startMin,
-    'endMin': endMin,
-  };
-
-  factory Period.fromJson(Map<String, dynamic> j) => Period(
-    index: j['index'] as int,
-    startMin: j['startMin'] as int,
-    endMin: j['endMin'] as int,
-  );
-}
-
-/// A course as printed in the handbook. Display and grouping only — attendance
-/// is never computed at this level, always per [Component].
-@immutable
-class Course {
-  final String id;
-  final String name; // "Intro to Large Language Models"
-  final String shortName; // "ILLM" — what actually fits on a row
-  final String? code; // "AI463"
-  final int color; // ARGB
-  final String? slotLabel; // 'A'|'B'|'C'|'D'|'E'|'H'
-
-  /// Courses sharing an [electiveGroup] are mutually exclusive: the student
-  /// takes exactly one. Null means "everybody takes this".
-  final String? electiveGroup;
-
-  final String? faculty;
-  final String? venue;
-  final String? batch; // "Batch-I" for split lab slots
-
-  const Course({
-    required this.id,
-    required this.name,
-    required this.shortName,
-    required this.color,
-    this.code,
-    this.slotLabel,
-    this.electiveGroup,
-    this.faculty,
-    this.venue,
-    this.batch,
-  });
-
-  Course copyWith({
-    String? name,
-    String? shortName,
-    String? code,
-    int? color,
-    String? slotLabel,
-    String? electiveGroup,
-    String? faculty,
-    String? venue,
-    String? batch,
-  }) => Course(
-    id: id,
-    name: name ?? this.name,
-    shortName: shortName ?? this.shortName,
-    code: code ?? this.code,
-    color: color ?? this.color,
-    slotLabel: slotLabel ?? this.slotLabel,
-    electiveGroup: electiveGroup ?? this.electiveGroup,
-    faculty: faculty ?? this.faculty,
-    venue: venue ?? this.venue,
-    batch: batch ?? this.batch,
-  );
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'shortName': shortName,
-    if (code != null) 'code': code,
-    'color': color,
-    if (slotLabel != null) 'slotLabel': slotLabel,
-    if (electiveGroup != null) 'electiveGroup': electiveGroup,
-    if (faculty != null) 'faculty': faculty,
-    if (venue != null) 'venue': venue,
-    if (batch != null) 'batch': batch,
-  };
-
-  factory Course.fromJson(Map<String, dynamic> j) => Course(
-    id: j['id'] as String,
-    name: j['name'] as String,
-    shortName: j['shortName'] as String? ?? j['name'] as String,
-    code: j['code'] as String?,
-    color: j['color'] as int,
-    slotLabel: j['slotLabel'] as String?,
-    electiveGroup: j['electiveGroup'] as String?,
-    faculty: j['faculty'] as String?,
-    venue: j['venue'] as String?,
-    batch: j['batch'] as String?,
-  );
-}
-
-/// Tutorials deliberately fold into [theory]: for a 3-1-0 course the tutorial
-/// sits on the same registration line, so the university enforces one combined
-/// percentage. Labs are a separate line and therefore a separate component.
-enum ComponentKind { theory, lab }
-
-extension ComponentKindX on ComponentKind {
-  String get label => switch (this) {
-    ComponentKind.theory => 'Theory',
-    ComponentKind.lab => 'Lab',
-  };
-}
-
 /// **The unit of accounting.** Every percentage, bunk budget, must-attend count
-/// and danger alert is computed per Component and never pooled across them.
+/// and danger alert is computed per Subject and never pooled across them.
+///
+/// A lab is just another Subject. Colleges track "OS" and "OS Lab" as separate
+/// registration lines with separate 75% requirements, so modelling a lab as a
+/// child of a course would only invite pooling them — which is exactly the bug
+/// that lets a healthy lecture percentage hide a failing lab.
 @immutable
-class Component {
+class Subject {
   final String id;
-  final String courseId;
-  final ComponentKind kind;
+  final String name; // "Operating Systems Lab" — whatever the user calls it
+  final int color; // ARGB
+  final String? faculty; // optional
+  final String? room; // optional default; a slot can override
   final double targetPercent; // 0.75
 
-  const Component({
+  const Subject({
     required this.id,
-    required this.courseId,
-    required this.kind,
+    required this.name,
+    required this.color,
+    this.faculty,
+    this.room,
     this.targetPercent = 0.75,
   });
 
-  Component copyWith({ComponentKind? kind, double? targetPercent}) => Component(
+  /// What fits on a crowded row. Long names get their first two words.
+  String get shortName {
+    final trimmed = name.trim();
+    if (trimmed.length <= 18) return trimmed;
+    final words = trimmed.split(RegExp(r'\s+'));
+    if (words.length == 1) return trimmed;
+    final two = words.take(2).join(' ');
+    return two.length <= 18 ? two : '${trimmed.substring(0, 17)}…';
+  }
+
+  Subject copyWith({
+    String? name,
+    int? color,
+    String? faculty,
+    bool clearFaculty = false,
+    String? room,
+    bool clearRoom = false,
+    double? targetPercent,
+  }) => Subject(
     id: id,
-    courseId: courseId,
-    kind: kind ?? this.kind,
+    name: name ?? this.name,
+    color: color ?? this.color,
+    faculty: clearFaculty ? null : (faculty ?? this.faculty),
+    room: clearRoom ? null : (room ?? this.room),
     targetPercent: targetPercent ?? this.targetPercent,
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'courseId': courseId,
-    'kind': kind.name,
+    'name': name,
+    'color': color,
+    if (faculty != null) 'faculty': faculty,
+    if (room != null) 'room': room,
     'targetPercent': targetPercent,
   };
 
-  factory Component.fromJson(Map<String, dynamic> j) => Component(
+  factory Subject.fromJson(Map<String, dynamic> j) => Subject(
     id: j['id'] as String,
-    courseId: j['courseId'] as String,
-    kind: ComponentKind.values.byName(j['kind'] as String),
-    targetPercent: (j['targetPercent'] as num).toDouble(),
+    name: j['name'] as String,
+    color: j['color'] as int,
+    faculty: j['faculty'] as String?,
+    room: j['room'] as String?,
+    targetPercent: (j['targetPercent'] as num?)?.toDouble() ?? 0.75,
   );
 }
 
-/// One cell of the repeating weekly timetable.
+/// One entry of the repeating weekly timetable: a subject on a weekday, with an
+/// optional time.
+///
+/// **One entry is one attendance.** A subject meeting twice on a Tuesday is two
+/// entries, not one entry with a multiplier — which is why there is no period
+/// grid, no span and no unit count here. A class that runs two hours is still
+/// one entry; length and attendance count are unrelated.
 @immutable
 class Slot {
   final String id;
-  final String componentId;
+  final String subjectId;
   final int weekday; // DateTime.monday..DateTime.sunday (1..7)
-  final int periodIndex; // anchors to Period.index
-  final int spanPeriods; // 1 for a lecture, 2 for a lab block
 
-  /// Renders as "Tutorial" and is per-slot, not per-course: Monday's D slot is
-  /// a lecture for AI459 but a tutorial for AI461. It does **not** split the
-  /// component — both still count into one theory percentage.
-  final bool isTutorial;
+  /// Minutes from midnight. Both null means "no time set" — the class still
+  /// counts, it just settles at the end of the day instead of when it ends.
+  final int? startMin;
+  final int? endMin;
 
-  /// Set when the class timetable splits this session across lab batches (the
-  /// IMAES lab runs Batch-I at 2:00 and Batch-II at 4:00 on the same Monday).
-  /// A slot with a batch only applies to the student in that batch; null means
-  /// "everyone in the course".
-  final String? batch;
-
-  final String? room;
-  final int units; // a 2-period lab counts 2
+  final String? room; // overrides the subject's default
 
   const Slot({
     required this.id,
-    required this.componentId,
+    required this.subjectId,
     required this.weekday,
-    required this.periodIndex,
-    this.spanPeriods = 1,
-    this.isTutorial = false,
-    this.batch,
+    this.startMin,
+    this.endMin,
     this.room,
-    int? units,
-  }) : units = units ?? spanPeriods;
+  });
+
+  bool get isTimed => startMin != null;
+
+  /// Minute at which this class is considered over, and therefore markable.
+  /// Untimed classes fall back to the user's configured end of day.
+  int effectiveEndMin(int dayEndsAtMin) =>
+      endMin ?? startMin ?? dayEndsAtMin;
+
+  /// Sort key: timed classes in time order, untimed ones after them.
+  int sortKey(int dayEndsAtMin) => startMin ?? (dayEndsAtMin + 1);
+
+  String get timeLabel {
+    if (startMin == null) return 'No time set';
+    if (endMin == null) return formatMinutes(startMin!);
+    return '${formatMinutes(startMin!)} – ${formatMinutes(endMin!)}';
+  }
 
   Slot copyWith({
-    String? componentId,
+    String? subjectId,
     int? weekday,
-    int? periodIndex,
-    int? spanPeriods,
-    bool? isTutorial,
-    String? batch,
+    int? startMin,
+    int? endMin,
+    bool clearTime = false,
+    bool clearEnd = false,
     String? room,
-    int? units,
+    bool clearRoom = false,
   }) => Slot(
     id: id,
-    componentId: componentId ?? this.componentId,
+    subjectId: subjectId ?? this.subjectId,
     weekday: weekday ?? this.weekday,
-    periodIndex: periodIndex ?? this.periodIndex,
-    spanPeriods: spanPeriods ?? this.spanPeriods,
-    isTutorial: isTutorial ?? this.isTutorial,
-    batch: batch ?? this.batch,
-    room: room ?? this.room,
-    units: units ?? this.units,
+    startMin: clearTime ? null : (startMin ?? this.startMin),
+    endMin: (clearTime || clearEnd) ? null : (endMin ?? this.endMin),
+    room: clearRoom ? null : (room ?? this.room),
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'componentId': componentId,
+    'subjectId': subjectId,
     'weekday': weekday,
-    'periodIndex': periodIndex,
-    'spanPeriods': spanPeriods,
-    'isTutorial': isTutorial,
-    if (batch != null) 'batch': batch,
+    if (startMin != null) 'startMin': startMin,
+    if (endMin != null) 'endMin': endMin,
     if (room != null) 'room': room,
-    'units': units,
   };
 
   factory Slot.fromJson(Map<String, dynamic> j) => Slot(
     id: j['id'] as String,
-    componentId: j['componentId'] as String,
+    subjectId: j['subjectId'] as String,
     weekday: j['weekday'] as int,
-    periodIndex: j['periodIndex'] as int,
-    spanPeriods: j['spanPeriods'] as int? ?? 1,
-    isTutorial: j['isTutorial'] as bool? ?? false,
-    batch: j['batch'] as String?,
+    startMin: j['startMin'] as int?,
+    endMin: j['endMin'] as int?,
     room: j['room'] as String?,
-    units: j['units'] as int?,
   );
 }
 
@@ -272,7 +175,7 @@ extension StatusX on Status {
 @immutable
 class AttendanceRecord {
   final String id;
-  final String componentId;
+  final String subjectId;
   final DateTime date; // local midnight
   final String? slotId; // null = ad-hoc extra class the teacher added
   final Status status;
@@ -286,7 +189,7 @@ class AttendanceRecord {
 
   const AttendanceRecord({
     required this.id,
-    required this.componentId,
+    required this.subjectId,
     required this.date,
     required this.status,
     required this.units,
@@ -300,20 +203,21 @@ class AttendanceRecord {
     int? units,
     bool? isManual,
     String? note,
+    bool clearNote = false,
   }) => AttendanceRecord(
     id: id,
-    componentId: componentId,
+    subjectId: subjectId,
     date: date,
     slotId: slotId,
     status: status ?? this.status,
     units: units ?? this.units,
     isManual: isManual ?? this.isManual,
-    note: note ?? this.note,
+    note: clearNote ? null : (note ?? this.note),
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'componentId': componentId,
+    'subjectId': subjectId,
     'date': dateKey(date),
     if (slotId != null) 'slotId': slotId,
     'status': status.name,
@@ -324,7 +228,7 @@ class AttendanceRecord {
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> j) => AttendanceRecord(
     id: j['id'] as String,
-    componentId: j['componentId'] as String,
+    subjectId: j['subjectId'] as String,
     date: parseDateKey(j['date'] as String),
     slotId: j['slotId'] as String?,
     status: Status.values.byName(j['status'] as String),

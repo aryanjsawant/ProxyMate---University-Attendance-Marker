@@ -1,260 +1,153 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:proxymate/data/seed_tt.dart';
 import 'package:proxymate/logic/attendance.dart';
-import 'package:proxymate/logic/dates.dart';
 import 'package:proxymate/logic/schedule.dart';
-import 'package:proxymate/logic/stats.dart';
+import 'package:proxymate/models/app_state.dart';
 import 'package:proxymate/models/models.dart';
 
 import 'helpers.dart';
 
+/// The two invariants that make "don't open the app for a week" correct:
+/// generation only ever inserts where nothing exists, and only for classes that
+/// have already ended.
 void main() {
-  // 6:00 pm Friday — the whole reference week has elapsed.
-  final endOfWeek = DateTime(2026, 8, 7, 18, 0);
+  // Monday evening, after everything including the untimed seminar (18:00).
+  final mondayNight = DateTime(2026, 8, 3, 22);
 
-  group('catch-up backfills presence', () {
-    test('a full elapsed week materialises 23 units as auto-present', () {
-      final s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
-
-      final units = s.records.fold(0, (a, r) => a + r.units);
-      expect(units, 23);
+  group('catch-up', () {
+    test('marks every elapsed class present', () {
+      final s = catchUp(testState(), mondayNight);
+      expect(s.records, hasLength(4));
       expect(s.records.every((r) => r.status == Status.present), isTrue);
       expect(s.records.every((r) => !r.isManual), isTrue);
     });
 
-    test('running it twice changes nothing', () {
-      final once = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
+    test('does not mark a class that has not ended yet', () {
+      // 10:30 — only Maths 9:00-9:50 has finished. OS runs to 10:50, Maths
+      // again at 14:00, and the untimed seminar settles at 18:00.
+      final s = catchUp(testState(), DateTime(2026, 8, 3, 10, 30));
+      expect(s.records, hasLength(1));
+      expect(s.records.single.slotId, 's1');
+    });
+
+    test('a class is marked the minute it ends, not a moment before', () {
+      final justBefore = catchUp(testState(), DateTime(2026, 8, 3, 10, 49));
+      expect(justBefore.records.any((r) => r.slotId == 's2'), isFalse);
+
+      final justAfter = catchUp(testState(), DateTime(2026, 8, 3, 10, 50));
+      expect(justAfter.records.any((r) => r.slotId == 's2'), isTrue);
+    });
+
+    test('an untimed class waits for the end-of-day time', () {
+      final before = catchUp(testState(), DateTime(2026, 8, 3, 17, 59));
+      expect(before.records.any((r) => r.slotId == 's4'), isFalse);
+
+      final after = catchUp(testState(), DateTime(2026, 8, 3, 18, 1));
+      expect(after.records.any((r) => r.slotId == 's4'), isTrue);
+    });
+
+    test('a manual absence is never overwritten', () {
+      final marked = testState(
+        records: [rec('maths', monday, Status.absent, slotId: 's1', manual: true)],
       );
-      final twice = catchUp(once, endOfWeek);
-      expect(twice.records.length, once.records.length);
+      final s = catchUp(marked, mondayNight);
+
+      final s1 = s.records.where((r) => r.slotId == 's1');
+      expect(s1, hasLength(1), reason: 'no duplicate was inserted');
+      expect(s1.single.status, Status.absent);
+      expect(s1.single.isManual, isTrue);
     });
 
-    test('a class that has not ended yet is never marked', () {
-      // Monday 9:00 am — period 1 (8:30-9:20) is still running.
-      final s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        DateTime(2026, 8, 3, 9, 0),
-      );
-      expect(s.records, isEmpty);
+    test('a week away backfills exactly the right classes', () {
+      // Mon 3 Aug through Sun 9 Aug: Mon 4, Tue 1, Wed 1 = 6.
+      final s = catchUp(testState(), DateTime(2026, 8, 9, 23));
+      expect(s.records, hasLength(6));
     });
 
-    test('mid-morning Monday captures only what has finished', () {
-      // 10:25 am — periods 1 and 2 are done, period 3 (10:30) has not started.
-      final s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        DateTime(2026, 8, 3, 10, 25),
-      );
-      expect(s.records.length, 2);
+    test('running twice adds nothing the second time', () {
+      final once = catchUp(testState(), mondayNight);
+      final twice = catchUp(once, mondayNight);
+      expect(twice.records, hasLength(once.records.length));
+      expect(identical(twice, once), isTrue, reason: 'no pointless rewrite');
     });
 
-    test('a week away backfills the whole gap on reopen', () {
-      final s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        DateTime(2026, 8, 10, 8, 0), // the following Monday, before class
-      );
-      expect(s.records.fold(0, (a, r) => a + r.units), 23);
+    test('holidays and post-term dates generate nothing', () {
+      var s = testState(end: monday);
+      s = s.copyWith(term: s.term!.copyWith(holidays: {monday}));
+      expect(catchUp(s, mondayNight).records, isEmpty);
     });
 
-    test('holidays generate nothing', () {
-      var s = enrolledState().copyWith(lastGeneratedDate: monday);
-      s = s.copyWith(term: s.term!.copyWith(holidays: {wednesday}));
-      s = catchUp(s, endOfWeek);
-
-      expect(s.records.any((r) => dateOnly(r.date) == wednesday), isFalse);
-      expect(s.records.fold(0, (a, r) => a + r.units), 23 - 4);
-    });
-
-    test('dates past the term end generate nothing', () {
-      var s = enrolledState(endDate: wednesday);
-      s = s.copyWith(lastGeneratedDate: monday);
-      s = catchUp(s, endOfWeek);
-
-      expect(s.records.any((r) => dateOnly(r.date).isAfter(wednesday)), isFalse);
-      expect(s.records.fold(0, (a, r) => a + r.units), 6 + 4 + 4);
-    });
-
-    test('an elective you did not take generates nothing', () {
-      final s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
-      for (final notTaken in ['ai453', 'ai457', 'ai461', 'ai465', 'ai411']) {
-        expect(
-          s.records.any((r) => r.componentId.startsWith(notTaken)),
-          isFalse,
-          reason: notTaken,
-        );
-      }
-    });
-
-    test('no term configured means no generation at all', () {
-      // seedClassTimetable() has courses and slots but no term yet, which is
-      // exactly the state the app is in before setup finishes.
-      final blank = seedClassTimetable().copyWith(
-        enrolledCourseIds: defaultElectives,
-        selectedBatch: 'Batch-I',
-      );
-      expect(blank.term, isNull);
-      expect(catchUp(blank, endOfWeek).records, isEmpty);
+    test('no term means nothing happens at all', () {
+      expect(catchUp(const AppState(), mondayNight).records, isEmpty);
     });
   });
 
-  group('manual always wins', () {
-    test('an absence marked before the class survives catch-up', () {
-      var s = enrolledState().copyWith(lastGeneratedDate: monday);
+  group('marking', () {
+    test('marking a future class writes a manual record catch-up respects', () {
+      final morning = DateTime(2026, 8, 3, 8);
+      final occ = occurrencesOn(testState(), monday).firstWhere(
+        (o) => o.slot.id == 's3', // Maths 14:00, hasn't happened
+      );
 
-      // Mark Monday's first class absent while it is still in the future.
-      final occ = occurrencesOn(s, monday).first;
-      s = setOccurrenceStatus(s, occ, Status.absent);
-      expect(s.records.single.status, Status.absent);
+      var s = setOccurrenceStatus(testState(), occ, Status.absent);
+      expect(s.records.single.isManual, isTrue);
 
-      s = catchUp(s, endOfWeek);
-
-      final kept = s.records.firstWhere((r) => r.slotId == occ.slot.id);
-      expect(kept.status, Status.absent);
-      expect(kept.isManual, isTrue);
-      expect(s.records.where((r) => r.slotId == occ.slot.id).length, 1);
+      s = catchUp(s, morning);
+      expect(s.records.where((r) => r.slotId == 's3'), hasLength(1));
+      expect(s.records.firstWhere((r) => r.slotId == 's3').status,
+          Status.absent);
     });
 
-    test('an absence marked after the fact is not reverted', () {
-      var s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
+    test('two entries of one subject on one day are independent', () {
+      var s = catchUp(testState(), mondayNight);
+      final maths = occurrencesOn(s, monday)
+          .where((o) => o.slot.subjectId == 'maths')
+          .toList();
 
-      final occ = occurrencesOn(s, monday).first;
-      s = setOccurrenceStatus(s, occ, Status.absent);
-      s = catchUp(s, DateTime(2026, 8, 14, 18, 0));
+      s = setOccurrenceStatus(s, maths.first, Status.absent);
 
-      expect(
-        s.records.firstWhere((r) => r.slotId == occ.slot.id).status,
-        Status.absent,
-      );
+      final records = s.records.where((r) => r.subjectId == 'maths').toList();
+      expect(records, hasLength(2));
+      expect(records.map((r) => r.status).toSet(),
+          {Status.absent, Status.present});
     });
 
-    test('marking absent moves only that component', () {
-      var s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
+    test('an extra class counts even with no slot behind it', () {
+      final s = addExtraClass(
+        testState(),
+        subjectId: 'os',
+        date: monday,
+        status: Status.present,
       );
-
-      final lab = occurrencesOn(
-        s,
-        thursday,
-      ).firstWhere((o) => o.slot.componentId == 'ai451-lab');
-      final theoryBefore = statsFor(s, 'ai451-th');
-
-      s = setOccurrenceStatus(s, lab, Status.absent);
-
-      final theoryAfter = statsFor(s, 'ai451-th');
-      final labAfter = statsFor(s, 'ai451-lab');
-
-      expect(theoryAfter.percent, theoryBefore.percent);
-      expect(theoryAfter.held, theoryBefore.held);
-      expect(labAfter.attended, 0);
-      expect(labAfter.held, 2, reason: 'a 2-period lab weighs 2 units');
-    });
-  });
-
-  group('teacher deviations', () {
-    test('an extra class counts like any other record', () {
-      var s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
-      final before = statsFor(s, 'ai401-th').held;
-
-      s = addExtraClass(
-        s,
-        componentId: 'ai401-th',
-        date: DateTime(2026, 8, 8), // a Saturday, not on the timetable
-        note: 'makeup class',
-      );
-
-      expect(statsFor(s, 'ai401-th').held, before + 1);
-      expect(s.records.last.slotId, isNull);
+      expect(s.records.single.slotId, isNull);
+      expect(s.records.single.isManual, isTrue);
     });
 
-    test('cancelling a whole day removes it from the denominator', () {
-      var s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
-      final heldBefore = statsFor(s, 'ai401-th').held;
-
-      s = markWholeDay(s, tuesday, Status.cancelled);
-
-      // Tuesday carried one AI401 theory class.
-      expect(statsFor(s, 'ai401-th').held, heldBefore - 1);
-      expect(statsFor(s, 'ai401-th').cancelled, 1);
+    test('marking a whole day cancelled touches every class on it', () {
+      final s = markWholeDay(testState(), monday, Status.cancelled);
+      expect(s.records, hasLength(4));
+      expect(s.records.every((r) => r.status == Status.cancelled), isTrue);
     });
 
     test('a no-class range clears records and blocks regeneration', () {
-      var s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
+      var s = catchUp(testState(), mondayNight);
       expect(s.records, isNotEmpty);
 
-      s = markRangeAsNoClass(s, wednesday, thursday);
-      expect(
-        s.records.any(
-          (r) =>
-              dateOnly(r.date) == wednesday || dateOnly(r.date) == thursday,
-        ),
-        isFalse,
-      );
+      s = markRangeAsNoClass(s, monday, monday.add(const Duration(days: 2)));
+      expect(s.records, isEmpty);
 
-      // and a later catch-up must not put them back
-      s = catchUp(s.copyWith(lastGeneratedDate: monday), endOfWeek);
-      expect(
-        s.records.any((r) => dateOnly(r.date) == wednesday),
-        isFalse,
-      );
-    });
-
-    test('deleting a record removes it from the tally', () {
-      var s = catchUp(
-        enrolledState().copyWith(lastGeneratedDate: monday),
-        endOfWeek,
-      );
-      final target = s.records.first;
-      final before = statsFor(s, target.componentId).held;
-
-      s = deleteRecord(s, target.id);
-      expect(statsFor(s, target.componentId).held, before - target.units);
+      s = catchUp(s, DateTime(2026, 8, 5, 23));
+      expect(s.records, isEmpty, reason: 'the range is now a holiday');
     });
   });
 
-  group('two sessions of one subject in a day stay independent', () {
-    test('AI411 Thursday: present for one, absent for the other', () {
-      var s = catchUp(
-        enrolledState(honours: true).copyWith(lastGeneratedDate: monday),
-        endOfWeek,
+  group('deleting a subject', () {
+    test('its slots stop generating', () {
+      final s = testState(subjects: [subOs, subOsLab, subSeminar]);
+      final generated = catchUp(s, mondayNight);
+      expect(
+        generated.records.any((r) => r.subjectId == 'maths'),
+        isFalse,
       );
-
-      final thu = occurrencesOn(
-        s,
-        thursday,
-      ).where((o) => o.slot.componentId == 'ai411-th').toList();
-      expect(thu.length, 2);
-
-      s = setOccurrenceStatus(s, thu.first, Status.absent);
-
-      final records = s.records
-          .where(
-            (r) => r.componentId == 'ai411-th' && dateOnly(r.date) == thursday,
-          )
-          .toList();
-
-      expect(records.length, 2);
-      expect(records.where((r) => r.status == Status.absent).length, 1);
-      expect(records.where((r) => r.status == Status.present).length, 1);
     });
   });
 }

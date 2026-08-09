@@ -43,7 +43,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
         ],
       ),
-      body: _listMode
+      body: !state.hasSubjects
+          ? _NothingYet(
+              icon: Icons.menu_book_outlined,
+              title: 'Nothing to show yet',
+              body: 'Add subjects and a timetable, and your attendance history '
+                  'will build itself here.',
+            )
+          : _listMode
           ? _MissedList(byDay: byDay)
           : _CalendarView(
               byDay: byDay,
@@ -59,6 +66,49 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ),
     );
   }
+}
+
+/// The calendar renders a month grid whatever happens, so with no data it used
+/// to look broken rather than empty. This replaces it outright.
+class _NothingYet extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+
+  const _NothingYet({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 38, color: context.colors.onSurfaceVariant),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: context.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.colors.onSurfaceVariant,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _CalendarView extends StatelessWidget {
@@ -251,7 +301,7 @@ class _MissedList extends ConsumerWidget {
             subtitle: Text(
               bad
                   .map((r) {
-                    final course = state.courseForComponent(r.componentId);
+                    final course = state.subjectById(r.subjectId);
                     return '${course?.shortName ?? '?'} '
                         '(${r.status.label.toLowerCase()})';
                   })

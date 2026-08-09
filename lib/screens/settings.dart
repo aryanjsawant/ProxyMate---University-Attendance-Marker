@@ -7,7 +7,9 @@ import '../logic/dates.dart';
 import '../logic/notifications.dart';
 import '../state/providers.dart';
 import '../theme.dart';
+import 'subject_manager.dart';
 import 'timetable_editor.dart';
+import 'walkthrough.dart';
 
 /// Everything you touch rarely. Timetable sits at the top because teachers do
 /// change the schedule mid-semester.
@@ -30,7 +32,7 @@ class SettingsScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.grid_view_outlined),
                 title: const Text('Edit weekly timetable'),
-                subtitle: Text('${state.enrolledSlots.length} classes a week'),
+                subtitle: Text('${state.activeSlots.length} classes a week'),
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const TimetableEditor()),
@@ -38,17 +40,27 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const Divider(indent: 16, endIndent: 16),
               ListTile(
-                leading: const Icon(Icons.swap_horiz),
-                title: const Text('Change electives / lab batch'),
+                leading: const Icon(Icons.menu_book_outlined),
+                title: const Text('Subjects'),
                 subtitle: Text(
-                  state.enrolledCourseIds
-                      .map((id) => state.courseById(id)?.shortName ?? id)
-                      .join(', '),
+                  state.subjects.isEmpty
+                      ? 'None yet'
+                      : state.subjects.map((s) => s.name).join(', '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: () => _showElectivePicker(context, ref),
+                onTap: () => showSubjectManager(context),
+              ),
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('How this app works'),
+                subtitle: const Text('The P / A / C walkthrough again'),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const WalkthroughScreen()),
+                ),
               ),
             ],
           ),
@@ -186,6 +198,37 @@ class SettingsScreen extends ConsumerWidget {
                     );
                   },
                 ),
+              ),
+              const Divider(indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.bedtime_outlined),
+                title: const Text('Day ends at'),
+                subtitle: const Text(
+                  'When classes with no time set are marked present',
+                ),
+                trailing: Text(
+                  formatMinutes(state.settings.dayEndsAtMinutes),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onTap: () async {
+                  final m = state.settings.dayEndsAtMinutes;
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay(hour: m ~/ 60, minute: m % 60),
+                    helpText: 'Your day ends at',
+                  );
+                  if (picked == null) return;
+                  ref
+                      .read(appProvider.notifier)
+                      .updateSettings(
+                        state.settings.copyWith(
+                          dayEndsAtMinutes: picked.hour * 60 + picked.minute,
+                        ),
+                      );
+                  await Notifications.instance.reschedule(
+                    ref.read(appProvider),
+                  );
+                },
               ),
               const Divider(indent: 16, endIndent: 16),
               SwitchListTile(
@@ -350,14 +393,6 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _showElectivePicker(BuildContext context, WidgetRef ref) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (_) => const _ElectivePickerSheet(),
-    );
-  }
 }
 
 class _Group extends StatelessWidget {
@@ -411,153 +446,10 @@ class _TargetTile extends ConsumerWidget {
           if (v == null || state.term == null) return;
           final notifier = ref.read(appProvider.notifier);
           notifier.updateTerm(state.term!.copyWith(defaultTarget: v));
-          for (final c in state.components) {
-            notifier.setTargetForComponent(c.id, v);
+          for (final s in state.subjects) {
+            notifier.setTargetForSubject(s.id, v);
           }
         },
-      ),
-    );
-  }
-}
-
-class _ElectivePickerSheet extends ConsumerStatefulWidget {
-  const _ElectivePickerSheet();
-
-  @override
-  ConsumerState<_ElectivePickerSheet> createState() =>
-      _ElectivePickerSheetState();
-}
-
-class _ElectivePickerSheetState extends ConsumerState<_ElectivePickerSheet> {
-  late final Set<String> _chosen = {
-    ...ref.read(appProvider).enrolledCourseIds,
-  };
-  late String? _batch = ref.read(appProvider).selectedBatch;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(appProvider);
-    final groups = state.electiveGroups;
-    final groupIds = groups.keys.toList()..sort();
-    final batches = state.availableBatches;
-    final optional = state.courses
-        .where((c) => c.electiveGroup == null && c.slotLabel == 'H')
-        .toList();
-
-    return SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        children: [
-          Text(
-            'Your courses',
-            style: context.text.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Changing these only affects classes from today onwards — past '
-            'records are left alone.',
-            style: TextStyle(
-              fontSize: 12,
-              color: context.colors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          for (final gid in groupIds) ...[
-            Text(
-              'SLOT $gid',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-                color: context.colors.onSurfaceVariant,
-              ),
-            ),
-            RadioGroup<String>(
-              groupValue: groups[gid]!
-                  .firstWhere(
-                    (x) => _chosen.contains(x.id),
-                    orElse: () => groups[gid]!.first,
-                  )
-                  .id,
-              onChanged: (v) => setState(() {
-                for (final x in groups[gid]!) {
-                  _chosen.remove(x.id);
-                }
-                _chosen.add(v!);
-              }),
-              child: Column(
-                children: [
-                  for (final c in groups[gid]!)
-                    RadioListTile<String>(
-                      value: c.id,
-                      title: Text(c.shortName),
-                      subtitle: Text(c.code ?? ''),
-                      dense: true,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          if (batches.isNotEmpty) ...[
-            Text(
-              'LAB BATCH',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-                color: context.colors.onSurfaceVariant,
-              ),
-            ),
-            RadioGroup<String>(
-              groupValue: _batch,
-              onChanged: (v) => setState(() => _batch = v),
-              child: Column(
-                children: [
-                  for (final b in batches)
-                    RadioListTile<String>(
-                      value: b,
-                      title: Text(b),
-                      dense: true,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          for (final c in optional)
-            SwitchListTile(
-              value: _chosen.contains(c.id),
-              onChanged: (v) => setState(() {
-                if (v) {
-                  _chosen.add(c.id);
-                } else {
-                  _chosen.remove(c.id);
-                }
-              }),
-              title: Text(c.shortName),
-              subtitle: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              dense: true,
-            ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () async {
-                ref
-                    .read(appProvider.notifier)
-                    .setEnrollment(_chosen, batch: _batch);
-                ref.read(appProvider.notifier).refreshNow();
-                await Notifications.instance.reschedule(ref.read(appProvider));
-                if (context.mounted) Navigator.of(context).pop();
-              },
-              child: const Text('Save'),
-            ),
-          ),
-        ],
       ),
     );
   }

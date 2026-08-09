@@ -13,8 +13,8 @@ enum RiskLevel { unknown, safe, warning, danger }
 
 /// Everything the UI needs about one component. Computed per [Component] and
 /// never pooled across them, because that is how the university enforces it.
-class ComponentStats {
-  final String componentId;
+class SubjectStats {
+  final String subjectId;
   final double target;
 
   /// All in *units*, so a 2-period lab weighs double automatically.
@@ -25,8 +25,8 @@ class ComponentStats {
   /// Units still to come before the term ends. Null when no end date is set.
   final int? remaining;
 
-  const ComponentStats({
-    required this.componentId,
+  const SubjectStats({
+    required this.subjectId,
     required this.target,
     required this.attended,
     required this.held,
@@ -128,13 +128,13 @@ String _pctLabel(double target) => '${(target * 100).toStringAsFixed(0)}%';
 ///
 /// [precomputedRemaining] lets [allStats] expand the rest of the term once and
 /// share the result across every component instead of paying for it per call.
-ComponentStats statsFor(
+SubjectStats statsFor(
   AppState state,
-  String componentId, {
+  String subjectId, {
   DateTime? now,
   Map<String, int>? precomputedRemaining,
 }) {
-  final comp = state.componentById(componentId);
+  final comp = state.subjectById(subjectId);
   final target = comp?.targetPercent ?? state.term?.defaultTarget ?? 0.75;
 
   var attended = 0;
@@ -142,7 +142,7 @@ ComponentStats statsFor(
   var cancelled = 0;
 
   for (final r in state.records) {
-    if (r.componentId != componentId) continue;
+    if (r.subjectId != subjectId) continue;
     if (r.status.countsTowardHeld) {
       held += r.units;
       if (r.status.countsTowardAttended) attended += r.units;
@@ -155,17 +155,17 @@ ComponentStats statsFor(
   if (precomputedRemaining != null) {
     remaining = state.term?.endDate == null
         ? null
-        : (precomputedRemaining[componentId] ?? 0);
+        : (precomputedRemaining[subjectId] ?? 0);
   } else {
     remaining = remainingUnits(
       state,
-      componentId,
+      subjectId,
       dateOnly(now ?? DateTime.now()),
     );
   }
 
-  return ComponentStats(
-    componentId: componentId,
+  return SubjectStats(
+    subjectId: subjectId,
     target: target,
     attended: attended,
     held: held,
@@ -176,13 +176,13 @@ ComponentStats statsFor(
 
 /// Stats for every enrolled component, most-at-risk first. Home shows the head
 /// of this list; Subjects shows all of it.
-List<ComponentStats> allStats(AppState state, {DateTime? now}) {
-  final remaining = remainingUnitsByComponent(
+List<SubjectStats> allStats(AppState state, {DateTime? now}) {
+  final remaining = remainingUnitsBySubject(
     state,
     dateOnly(now ?? DateTime.now()),
   );
   final out = [
-    for (final c in state.enrolledComponents)
+    for (final c in state.subjects)
       statsFor(state, c.id, now: now, precomputedRemaining: remaining),
   ];
   out.sort((a, b) {
@@ -196,5 +196,5 @@ List<ComponentStats> allStats(AppState state, {DateTime? now}) {
 }
 
 /// Components currently below their own target.
-List<ComponentStats> atRisk(AppState state, {DateTime? now}) =>
+List<SubjectStats> atRisk(AppState state, {DateTime? now}) =>
     allStats(state, now: now).where((s) => s.hasData && !s.isAtTarget).toList();

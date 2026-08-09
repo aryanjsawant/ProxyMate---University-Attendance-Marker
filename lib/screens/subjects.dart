@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../logic/schedule.dart';
 import '../logic/stats.dart';
-import '../models/models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 import '../widgets/standing_row.dart';
 import 'subject_detail.dart';
+import 'subject_editor.dart';
 
-/// One card per **component**, grouped under its course.
+/// One card per subject, worst first.
 ///
-/// ILLM Theory and ILLM Lab are separate cards with separate numbers because
-/// that is how the university enforces them — pooling them would let a healthy
-/// lecture percentage hide a failing lab.
+/// Labs are ordinary subjects here — there is no course/component nesting,
+/// because colleges enforce a separate percentage per registration line and
+/// nesting them only ever invited pooling.
 class SubjectsScreen extends ConsumerWidget {
   const SubjectsScreen({super.key});
 
@@ -21,197 +22,172 @@ class SubjectsScreen extends ConsumerWidget {
     final state = ref.watch(appProvider);
     final stats = ref.watch(allStatsProvider);
 
-    // Group components by course, keeping courses ordered by their worst
-    // component so trouble floats to the top of the screen.
-    final byCourse = <String, List<ComponentStats>>{};
-    for (final s in stats) {
-      final comp = state.componentById(s.componentId);
-      if (comp == null) continue;
-      (byCourse[comp.courseId] ??= []).add(s);
-    }
-
-    final courseIds = byCourse.keys.toList()
-      ..sort((a, b) {
-        final wa = byCourse[a]!.first.risk.index;
-        final wb = byCourse[b]!.first.risk.index;
-        return wb.compareTo(wa);
-      });
-
     return Scaffold(
       appBar: AppBar(title: const Text('Subjects')),
-      body: courseIds.isEmpty
-          ? Center(
-              child: Text(
-                'No subjects yet.',
-                style: TextStyle(color: context.colors.onSurfaceVariant),
-              ),
+      floatingActionButton: state.hasSubjects
+          ? FloatingActionButton.extended(
+              onPressed: () => showSubjectEditor(context, null),
+              icon: const Icon(Icons.add),
+              label: const Text('Subject'),
             )
+          : null,
+      body: stats.isEmpty
+          ? _NoSubjects(onAdd: () => showSubjectEditor(context, null))
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
               children: [
-                for (final courseId in courseIds) ...[
-                  _CourseGroup(
-                    course: state.courseById(courseId),
-                    components: byCourse[courseId]!
-                      ..sort(
-                        (a, b) => _kindOrder(
-                          state.componentById(a.componentId)?.kind,
-                        ).compareTo(
-                          _kindOrder(state.componentById(b.componentId)?.kind),
-                        ),
-                      ),
+                for (final s in stats)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _SubjectCard(stats: s),
                   ),
-                  const SizedBox(height: 20),
-                ],
               ],
             ),
     );
   }
-
-  static int _kindOrder(ComponentKind? k) =>
-      k == ComponentKind.theory ? 0 : 1;
 }
 
-class _CourseGroup extends ConsumerWidget {
-  final Course? course;
-  final List<ComponentStats> components;
-
-  const _CourseGroup({required this.course, required this.components});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: Color(course?.color ?? 0xFF64748B),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  course?.name ?? 'Unknown course',
-                  style: context.text.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (course?.code != null)
-                Text(
-                  course!.code!,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.onSurfaceVariant,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        Card(
-          child: Column(
-            children: [
-              for (var i = 0; i < components.length; i++) ...[
-                if (i > 0) const Divider(indent: 16, endIndent: 16),
-                _ComponentTile(stats: components[i]),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ComponentTile extends ConsumerWidget {
-  final ComponentStats stats;
-  const _ComponentTile({required this.stats});
+class _SubjectCard extends ConsumerWidget {
+  final SubjectStats stats;
+  const _SubjectCard({required this.stats});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appProvider);
-    final component = state.componentById(stats.componentId);
+    final subject = state.subjectById(stats.subjectId);
     final colour = context.risk.of(stats.risk);
+    final perWeek = weeklyUnits(state, stats.subjectId);
 
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => SubjectDetailScreen(componentId: stats.componentId),
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SubjectDetailScreen(subjectId: stats.subjectId),
+          ),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  component?.kind.label ?? 'Component',
-                  style: context.text.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  stats.hasData ? '${(stats.percent! * 100).round()}%' : '—',
-                  style: context.text.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: colour,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: context.colors.onSurfaceVariant,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            AttendanceBar(stats: stats),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    stats.headline,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: stats.risk == RiskLevel.danger
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      color: stats.risk == RiskLevel.danger
-                          ? colour
-                          : context.colors.onSurfaceVariant,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Color(subject?.color ?? 0xFF64748B),
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-                Text(
-                  stats.hasData
-                      ? '${stats.attended}/${stats.held}'
-                      : 'not started',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFeatures: const [],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      subject?.name ?? 'Unknown subject',
+                      style: context.text.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    stats.hasData ? '${(stats.percent! * 100).round()}%' : '—',
+                    style: context.text.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: colour,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
                     color: context.colors.onSurfaceVariant,
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              AttendanceBar(stats: stats),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      stats.headline,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: stats.risk == RiskLevel.danger
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: stats.risk == RiskLevel.danger
+                            ? colour
+                            : context.colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    stats.hasData
+                        ? '${stats.attended}/${stats.held}'
+                        : perWeek == 0
+                        ? 'not on timetable'
+                        : 'not started',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _NoSubjects extends StatelessWidget {
+  final VoidCallback onAdd;
+  const _NoSubjects({required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.menu_book_outlined,
+            size: 40,
+            color: context.colors.onSurfaceVariant,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No subjects yet',
+            style: context.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Add each subject you want tracked. Labs count as their own '
+            'subject — most colleges enforce a separate 75% on them.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.colors.onSurfaceVariant,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Add your first subject'),
+            onPressed: onAdd,
+          ),
+        ],
+      ),
+    ),
+  );
 }

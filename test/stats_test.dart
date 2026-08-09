@@ -6,14 +6,14 @@ import 'helpers.dart';
 /// The arithmetic is the one place where a wrong sign silently gives bad advice
 /// all semester, so every branch is pinned here.
 void main() {
-  ComponentStats tally(int attended, int held, {int cancelled = 0}) => statsFor(
+  SubjectStats tally(int attended, int held, {int cancelled = 0}) => statsFor(
     stateWithTally(
-      componentId: 'ai463-th',
+      subjectId: 'os',
       attended: attended,
       held: held,
       cancelled: cancelled,
     ),
-    'ai463-th',
+    'os',
   );
 
   group('current standing', () {
@@ -103,8 +103,8 @@ void main() {
   group('projections need a term end date', () {
     test('without an end date nothing is projected', () {
       final s = statsFor(
-        stateWithTally(componentId: 'ai463-th', attended: 30, held: 40),
-        'ai463-th',
+        stateWithTally(subjectId: 'os', attended: 30, held: 40),
+        'os',
       );
       expect(s.remaining, isNull);
       expect(s.projectedTotal, isNull);
@@ -114,8 +114,8 @@ void main() {
     });
 
     test('with remaining classes the whole-term budget is computed', () {
-      const s = ComponentStats(
-        componentId: 'x',
+      const s = SubjectStats(
+        subjectId: 'x',
         target: 0.75,
         attended: 30,
         held: 40,
@@ -130,8 +130,8 @@ void main() {
     });
 
     test('an unreachable target says so instead of inventing a number', () {
-      const s = ComponentStats(
-        componentId: 'x',
+      const s = SubjectStats(
+        subjectId: 'x',
         target: 0.75,
         attended: 10,
         held: 40,

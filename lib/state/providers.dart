@@ -68,23 +68,19 @@ class AppController extends Notifier<AppState> {
 
   void applyImportedTimetable(AppState imported) => _commit(imported);
 
-  void completeSetup({
-    required AppState base,
-    required Term term,
-    required Set<String> enrolledCourseIds,
-    String? selectedBatch,
-  }) {
-    final configured = base.copyWith(
+  /// Finishes onboarding. The timetable may be empty — skipping it during setup
+  /// is explicitly supported, so nothing here may assume slots exist.
+  void completeSetup({required Term term, List<Subject>? subjects}) {
+    final configured = state.copyWith(
       term: term,
-      enrolledCourseIds: enrolledCourseIds,
-      selectedBatch: selectedBatch,
+      subjects: subjects ?? state.subjects,
       lastGeneratedDate: dateOnly(term.startDate),
     );
     _commit(engine.catchUp(configured, DateTime.now()));
 
-    // Ask for the permission and arm the weekly nudges only once the user has
-    // actually committed to a timetable — prompting on first launch, before
-    // they've seen anything, is how apps get their notifications denied.
+    // Ask for the permission only once the user has committed to a term —
+    // prompting on first launch, before they've seen anything, is how apps get
+    // their notifications denied.
     Notifications.instance.requestPermission().then(
       (_) => Notifications.instance.reschedule(state),
     );
@@ -92,24 +88,55 @@ class AppController extends Notifier<AppState> {
 
   void updateTerm(Term term) => _commit(state.copyWith(term: term));
 
-  void setEnrollment(Set<String> courseIds, {String? batch}) {
-    _commit(
-      state.copyWith(enrolledCourseIds: courseIds, selectedBatch: batch),
-    );
-  }
-
   void updateSettings(Settings s) => _commit(state.copyWith(settings: s));
 
-  void setTargetForComponent(String componentId, double target) {
+  void setTargetForSubject(String subjectId, double target) => _commit(
+    state.copyWith(
+      subjects: [
+        for (final s in state.subjects)
+          if (s.id == subjectId) s.copyWith(targetPercent: target) else s,
+      ],
+    ),
+  );
+
+  // ---- subjects ------------------------------------------------------------
+
+  void upsertSubject(Subject subject) {
+    final exists = state.subjects.any((s) => s.id == subject.id);
     _commit(
       state.copyWith(
-        components: [
-          for (final c in state.components)
-            if (c.id == componentId) c.copyWith(targetPercent: target) else c,
-        ],
+        subjects: exists
+            ? [
+                for (final s in state.subjects)
+                  if (s.id == subject.id) subject else s,
+              ]
+            : [...state.subjects, subject],
       ),
     );
   }
+
+  /// Deleting a subject cascades to its timetable slots and its attendance
+  /// history. Leaving orphaned records behind would keep them in the maths
+  /// while being invisible and un-editable in the UI — worse than losing them,
+  /// because the numbers would silently be wrong.
+  ///
+  /// The confirm dialog shows both counts before this is called.
+  void deleteSubject(String subjectId) => _commit(
+    state.copyWith(
+      subjects: [
+        for (final s in state.subjects)
+          if (s.id != subjectId) s,
+      ],
+      slots: [
+        for (final s in state.slots)
+          if (s.subjectId != subjectId) s,
+      ],
+      records: [
+        for (final r in state.records)
+          if (r.subjectId != subjectId) r,
+      ],
+    ),
+  );
 
   // ---- marking -------------------------------------------------------------
 
@@ -134,7 +161,7 @@ class AppController extends Notifier<AppState> {
       _commit(engine.deleteRecord(state, id), checkRisk: true);
 
   void addExtraClass({
-    required String componentId,
+    required String subjectId,
     required DateTime date,
     Status status = Status.present,
     int units = 1,
@@ -142,7 +169,7 @@ class AppController extends Notifier<AppState> {
   }) => _commit(
     engine.addExtraClass(
       state,
-      componentId: componentId,
+      subjectId: subjectId,
       date: date,
       status: status,
       units: units,
@@ -182,28 +209,6 @@ class AppController extends Notifier<AppState> {
     ),
   );
 
-  void updatePeriods(List<Period> periods) =>
-      _commit(state.copyWith(periods: periods));
-
-  void upsertCourse(Course course, List<Component> comps) {
-    final exists = state.courses.any((c) => c.id == course.id);
-    _commit(
-      state.copyWith(
-        courses: exists
-            ? [
-                for (final c in state.courses)
-                  if (c.id == course.id) course else c,
-              ]
-            : [...state.courses, course],
-        components: [
-          for (final c in state.components)
-            if (c.courseId != course.id) c,
-          ...comps,
-        ],
-      ),
-    );
-  }
-
   /// Copy every slot from one weekday onto another — the single biggest
   /// time-saver when entering a timetable by hand.
   void copyDay(int fromWeekday, int toWeekday) {
@@ -230,38 +235,35 @@ extension on Slot {
   /// slot onto another day needs this.
   Slot withId(String newIdValue) => Slot(
     id: newIdValue,
-    componentId: componentId,
+    subjectId: subjectId,
     weekday: weekday,
-    periodIndex: periodIndex,
-    spanPeriods: spanPeriods,
-    isTutorial: isTutorial,
-    batch: batch,
+    startMin: startMin,
+    endMin: endMin,
     room: room,
-    units: units,
   );
 }
 
 // ---- derived state ---------------------------------------------------------
 
-/// Today's classes, chronological.
+/// Today's classes, timed ones in order and untimed ones after.
 final todayProvider = Provider<List<Occurrence>>((ref) {
   final s = ref.watch(appProvider);
   final now = ref.watch(clockProvider);
   return occurrencesOn(s, now);
 });
 
-/// Every enrolled component, most-at-risk first.
-final allStatsProvider = Provider<List<ComponentStats>>((ref) {
+/// Every subject, most-at-risk first.
+final allStatsProvider = Provider<List<SubjectStats>>((ref) {
   final s = ref.watch(appProvider);
   final now = ref.watch(clockProvider);
   return allStats(s, now: now);
 });
 
-final statsForProvider = Provider.family<ComponentStats, String>((
+final statsForProvider = Provider.family<SubjectStats, String>((
   ref,
-  componentId,
+  subjectId,
 ) {
   final s = ref.watch(appProvider);
   final now = ref.watch(clockProvider);
-  return statsFor(s, componentId, now: now);
+  return statsFor(s, subjectId, now: now);
 });

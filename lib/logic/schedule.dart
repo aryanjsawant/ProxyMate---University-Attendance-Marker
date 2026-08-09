@@ -8,26 +8,30 @@ import 'dates.dart';
 class Occurrence {
   final DateTime date;
   final Slot slot;
-  final Period startPeriod;
-  final Period endPeriod;
+
+  /// Minute of the day at which this class counts as over. For a timed class
+  /// that's its end (or start, if no end was given); for an untimed one it's
+  /// the user's configured end of day.
+  final int endMin;
 
   const Occurrence({
     required this.date,
     required this.slot,
-    required this.startPeriod,
-    required this.endPeriod,
+    required this.endMin,
   });
 
-  DateTime get startsAt =>
-      DateTime(date.year, date.month, date.day, 0, startPeriod.startMin);
+  bool get isTimed => slot.isTimed;
+
+  DateTime? get startsAt => slot.startMin == null
+      ? null
+      : DateTime(date.year, date.month, date.day, 0, slot.startMin!);
 
   DateTime get endsAt =>
-      DateTime(date.year, date.month, date.day, 0, endPeriod.endMin);
+      DateTime(date.year, date.month, date.day, 0, endMin);
 
   bool hasElapsedAt(DateTime now) => !now.isBefore(endsAt);
 
-  String get timeRange =>
-      '${formatMinutes(startPeriod.startMin)} – ${formatMinutes(endPeriod.endMin)}';
+  String get timeLabel => slot.timeLabel;
 
   /// Stable identity of a scheduled class, used to test "does a record already
   /// exist for this?" without storing occurrences.
@@ -35,8 +39,9 @@ class Occurrence {
 }
 
 /// Key used to match an existing record back to the slot that generated it.
-String recordKey(AttendanceRecord r) =>
-    r.slotId == null ? '${dateKey(r.date)}#adhoc:${r.id}' : '${dateKey(r.date)}#${r.slotId}';
+String recordKey(AttendanceRecord r) => r.slotId == null
+    ? '${dateKey(r.date)}#adhoc:${r.id}'
+    : '${dateKey(r.date)}#${r.slotId}';
 
 /// True when [date] is inside the term and is not a holiday.
 bool isTeachingDay(AppState s, DateTime date) {
@@ -50,29 +55,30 @@ bool isTeachingDay(AppState s, DateTime date) {
   return true;
 }
 
-/// Every enrolled class scheduled on [date], sorted by start time.
-///
-/// Slots belonging to the elective the user did *not* take generate nothing —
-/// this is what turns the shared class timetable into a personal one.
+/// Every class scheduled on [date], timed ones in time order and untimed ones
+/// after them.
 List<Occurrence> occurrencesOn(AppState s, DateTime date) {
   if (!isTeachingDay(s, date)) return const [];
   final d = dateOnly(date);
+  final dayEnd = s.settings.dayEndsAtMinutes;
   final out = <Occurrence>[];
 
   for (final slot in s.slots) {
     if (slot.weekday != d.weekday) continue;
-    if (!s.isSlotActive(slot)) continue;
-
-    final start = s.periodByIndex(slot.periodIndex);
-    final end = s.periodByIndex(slot.periodIndex + slot.spanPeriods - 1);
-    if (start == null || end == null) continue; // timetable references a period that no longer exists
+    // A slot whose subject was deleted generates nothing. Deletion cascades,
+    // so this guards against a hand-edited import rather than a normal path.
+    if (s.subjectById(slot.subjectId) == null) continue;
 
     out.add(
-      Occurrence(date: d, slot: slot, startPeriod: start, endPeriod: end),
+      Occurrence(
+        date: d,
+        slot: slot,
+        endMin: slot.effectiveEndMin(dayEnd),
+      ),
     );
   }
 
-  out.sort((a, b) => a.startPeriod.startMin.compareTo(b.startPeriod.startMin));
+  out.sort((a, b) => a.slot.sortKey(dayEnd).compareTo(b.slot.sortKey(dayEnd)));
   return out;
 }
 
@@ -86,16 +92,16 @@ List<Occurrence> expandSlots(AppState s, DateTime from, DateTime to) {
   return out;
 }
 
-/// Units still to come for every component in **one** expansion of the rest of
-/// the term, keyed by component id.
+/// Classes still to come for every subject in **one** expansion of the rest of
+/// the term, keyed by subject id.
 ///
-/// Doing this per-component instead would re-walk every remaining day of the
-/// semester once per subject — around ten times the work on every rebuild, on
-/// the kind of phone this app is meant for.
+/// Doing this per-subject instead would re-walk every remaining day of the term
+/// once per subject — around ten times the work on every rebuild, on the kind
+/// of phone this app is meant for.
 ///
 /// Returns an empty map when the term has no end date; callers distinguish
 /// "nothing left" from "cannot project" via [AppState.term].
-Map<String, int> remainingUnitsByComponent(AppState s, DateTime from) {
+Map<String, int> remainingUnitsBySubject(AppState s, DateTime from) {
   final end = s.term?.endDate;
   if (end == null) return const {};
 
@@ -107,30 +113,25 @@ Map<String, int> remainingUnitsByComponent(AppState s, DateTime from) {
   final out = <String, int>{};
   for (final occ in expandSlots(s, from, end)) {
     if (existing.contains(occ.key)) continue;
-    out.update(
-      occ.slot.componentId,
-      (v) => v + occ.slot.units,
-      ifAbsent: () => occ.slot.units,
-    );
+    // One timetable entry is one attendance, always.
+    out.update(occ.slot.subjectId, (v) => v + 1, ifAbsent: () => 1);
   }
   return out;
 }
 
-/// Units still to come for one component. Returns null when the term has no end
+/// Classes still to come for one subject. Returns null when the term has no end
 /// date — the honest answer, since nothing downstream can be projected without
 /// one.
-int? remainingUnits(AppState s, String componentId, DateTime from) {
+int? remainingUnits(AppState s, String subjectId, DateTime from) {
   if (s.term?.endDate == null) return null;
-  return remainingUnitsByComponent(s, from)[componentId] ?? 0;
+  return remainingUnitsBySubject(s, from)[subjectId] ?? 0;
 }
 
-/// Units per week for a component, for the "how heavy is this subject" line.
-int weeklyUnits(AppState s, String componentId) {
+/// Classes per week for a subject, for the "how heavy is this subject" line.
+int weeklyUnits(AppState s, String subjectId) {
   var total = 0;
   for (final slot in s.slots) {
-    if (slot.componentId != componentId) continue;
-    if (!s.isSlotActive(slot)) continue;
-    total += slot.units;
+    if (slot.subjectId == subjectId) total++;
   }
   return total;
 }

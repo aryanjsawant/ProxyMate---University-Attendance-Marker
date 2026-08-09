@@ -24,7 +24,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.aryan.proxymate"
+        // Deliberately different from the `svnit` branch's "com.aryan.proxymate".
+        // Android keys installed apps by applicationId, so this is the one and
+        // only change needed to run both builds side by side on one phone.
+        // The label and icon are intentionally left alone.
+        applicationId = "com.aryan.proxymate.general"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

@@ -193,7 +193,7 @@ class _AddExtraClassSheetState extends ConsumerState<_AddExtraClassSheet> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appProvider);
-    final components = state.enrolledComponents;
+    final components = state.subjects;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -228,10 +228,24 @@ class _AddExtraClassSheetState extends ConsumerState<_AddExtraClassSheet> {
               for (final c in components)
                 DropdownMenuItem(
                   value: c.id,
-                  child: Text(
-                    '${state.courseById(c.courseId)?.shortName ?? '?'} · '
-                    '${c.kind.label}',
-                    overflow: TextOverflow.ellipsis,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Color(c.color),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          c.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],
@@ -280,7 +294,7 @@ class _AddExtraClassSheetState extends ConsumerState<_AddExtraClassSheet> {
                       ref
                           .read(appProvider.notifier)
                           .addExtraClass(
-                            componentId: _componentId!,
+                            subjectId: _componentId!,
                             date: widget.date,
                             status: _status,
                             units: _units,

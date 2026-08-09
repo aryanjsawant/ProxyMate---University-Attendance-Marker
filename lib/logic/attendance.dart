@@ -15,8 +15,10 @@ import 'schedule.dart';
 ///  1. **Manual always wins.** Generation only ever *inserts where nothing
 ///     exists*. It never updates or overwrites, so marking yourself absent is
 ///     permanent — whether you did it before or after the class.
-///  2. **Never mark a class that hasn't happened.** Only slots whose end time
-///     has passed are materialised; today's later classes stay projected.
+///  2. **Never mark a class that hasn't happened.** Only classes whose end time
+///     has passed are materialised; today's later ones stay projected. A class
+///     with no time set uses the configured end of day, so it settles once the
+///     day is over rather than the moment it starts.
 ///
 /// Together these make "don't open the app for a week" correct by
 /// construction: reopening backfills every elapsed slot as present, which is
@@ -43,11 +45,11 @@ AppState catchUp(AppState state, DateTime now) {
       added.add(
         AttendanceRecord(
           id: newId('r-'),
-          componentId: occ.slot.componentId,
+          subjectId: occ.slot.subjectId,
           date: day,
           slotId: occ.slot.id,
           status: Status.present,
-          units: occ.slot.units,
+          units: 1,
           isManual: false,
         ),
       );
@@ -93,11 +95,11 @@ AppState setOccurrenceStatus(
       ...state.records,
       AttendanceRecord(
         id: newId('r-'),
-        componentId: occ.slot.componentId,
+        subjectId: occ.slot.subjectId,
         date: occ.date,
         slotId: occ.slot.id,
         status: status,
-        units: units ?? occ.slot.units,
+        units: units ?? 1,
         isManual: true,
       ),
     ],
@@ -122,7 +124,7 @@ AppState deleteRecord(AppState state, String recordId) => state.copyWith(
 /// record with no backing slot, so it counts identically everywhere.
 AppState addExtraClass(
   AppState state, {
-  required String componentId,
+  required String subjectId,
   required DateTime date,
   Status status = Status.present,
   int units = 1,
@@ -132,7 +134,7 @@ AppState addExtraClass(
     ...state.records,
     AttendanceRecord(
       id: newId('x-'),
-      componentId: componentId,
+      subjectId: subjectId,
       date: dateOnly(date),
       slotId: null,
       status: status,

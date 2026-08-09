@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/app_state.dart';
@@ -32,11 +33,21 @@ class Store {
 
   /// Written to a temp file and renamed, so a crash mid-write can't leave a
   /// half-serialized document where the semester's records used to be.
+  ///
+  /// Callers treat this as fire-and-forget — in-memory state is what the UI
+  /// renders, and a tap must never block on the disk. That makes swallowing
+  /// failures here the right call rather than a lazy one: an uncaught error in
+  /// a detached future would take down the zone instead of just losing one
+  /// write, and the next commit rewrites the whole document anyway.
   Future<void> save(AppState state) async {
-    final f = await _file();
-    final tmp = File('${f.path}.tmp');
-    await tmp.writeAsString(encode(state), flush: true);
-    await tmp.rename(f.path);
+    try {
+      final f = await _file();
+      final tmp = File('${f.path}.tmp');
+      await tmp.writeAsString(encode(state), flush: true);
+      await tmp.rename(f.path);
+    } catch (e) {
+      debugPrint('ProxyMate: could not save state: $e');
+    }
   }
 
   Future<File> writeExport(AppState state) async {

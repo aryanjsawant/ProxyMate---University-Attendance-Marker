@@ -5,7 +5,6 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/app_state.dart';
-import '../models/models.dart';
 import 'stats.dart';
 
 /// Local notifications only — no Firebase, no push server, no backend.
@@ -112,17 +111,18 @@ class Notifications {
   /// which is a genuine no-op because present is already the default.
   Future<void> _scheduleDailyNudges(AppState state) async {
     for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++) {
-      final slots = state.enrolledSlots.where((s) => s.weekday == weekday);
+      final slots = state.activeSlots.where((s) => s.weekday == weekday);
       if (slots.isEmpty) continue;
 
+      // Untimed classes settle at the configured end of day, so that acts as
+      // the floor for when the day's confirmation makes sense.
+      final dayEnd = state.settings.dayEndsAtMinutes;
       var lastEnd = 0;
       var count = 0;
       for (final s in slots) {
         count++;
-        final endPeriod = state.periodByIndex(s.periodIndex + s.spanPeriods - 1);
-        if (endPeriod != null && endPeriod.endMin > lastEnd) {
-          lastEnd = endPeriod.endMin;
-        }
+        final end = s.effectiveEndMin(dayEnd);
+        if (end > lastEnd) lastEnd = end;
       }
       if (lastEnd == 0) continue;
 
@@ -155,7 +155,7 @@ class Notifications {
     );
   }
 
-  /// Fired the instant an absence pushes a component under its target.
+  /// Fired the instant an absence pushes a subject under its target.
   ///
   /// Because presence is assumed, attendance can *only* fall when the user
   /// marks an absence — so checking here catches every crossing with no
@@ -168,22 +168,20 @@ class Notifications {
     if (!_ready) return;
 
     final wasSafe = {
-      for (final s in allStats(before, now: now)) s.componentId: s.isAtTarget,
+      for (final s in allStats(before, now: now)) s.subjectId: s.isAtTarget,
     };
 
     for (final s in allStats(after, now: now)) {
       if (!s.hasData) continue;
       if (s.isAtTarget) continue;
-      if (wasSafe[s.componentId] != true) continue; // already unsafe before
+      if (wasSafe[s.subjectId] != true) continue; // already unsafe before
 
-      final course = after.courseForComponent(s.componentId);
-      final component = after.componentById(s.componentId);
+      final subject = after.subjectById(s.subjectId);
 
       await _plugin.show(
-        id: _alertId + s.componentId.hashCode.abs() % 1000,
+        id: _alertId + s.subjectId.hashCode.abs() % 1000,
         title:
-            '${course?.shortName ?? 'A subject'} '
-            '${component?.kind.label ?? ''} dropped below '
+            '${subject?.shortName ?? 'A subject'} dropped below '
             '${(s.target * 100).round()}%',
         body: s.headline,
         notificationDetails: _details,

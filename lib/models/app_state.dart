@@ -8,23 +8,12 @@ import 'models.dart';
 /// backup/restore is free.
 @immutable
 class AppState {
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
 
   final Term? term;
-  final List<Period> periods;
-  final List<Course> courses;
-  final List<Component> components;
+  final List<Subject> subjects;
   final List<Slot> slots;
   final List<AttendanceRecord> records;
-
-  /// Course ids the user is actually taking. Slots whose course is not in here
-  /// generate nothing — this is what turns a shared *class* timetable into a
-  /// personal one.
-  final Set<String> enrolledCourseIds;
-
-  /// Which lab batch the student is in, matched against [Slot.batch]. Null when
-  /// the timetable has no batch-split slots.
-  final String? selectedBatch;
 
   /// Last date the catch-up engine has walked to, so reopening after a week
   /// backfills from the right place.
@@ -34,31 +23,26 @@ class AppState {
 
   const AppState({
     this.term,
-    this.periods = const [],
-    this.courses = const [],
-    this.components = const [],
+    this.subjects = const [],
     this.slots = const [],
     this.records = const [],
-    this.enrolledCourseIds = const {},
-    this.selectedBatch,
     this.lastGeneratedDate,
     this.settings = const Settings(),
   });
 
-  bool get isConfigured => term != null && slots.isNotEmpty;
+  /// Onboarding is finished once a term exists. A timetable is deliberately
+  /// *not* required — you can skip it during setup and add it later, and the
+  /// app has to stay coherent in the meantime.
+  bool get isConfigured => term != null;
+
+  bool get hasTimetable => slots.isNotEmpty;
+  bool get hasSubjects => subjects.isNotEmpty;
 
   // ---- lookups -------------------------------------------------------------
 
-  Course? courseById(String id) {
-    for (final c in courses) {
-      if (c.id == id) return c;
-    }
-    return null;
-  }
-
-  Component? componentById(String id) {
-    for (final c in components) {
-      if (c.id == id) return c;
+  Subject? subjectById(String id) {
+    for (final s in subjects) {
+      if (s.id == id) return s;
     }
     return null;
   }
@@ -70,76 +54,38 @@ class AppState {
     return null;
   }
 
-  Period? periodByIndex(int i) {
-    for (final p in periods) {
-      if (p.index == i) return p;
-    }
-    return null;
-  }
+  Subject? subjectForSlot(Slot s) => subjectById(s.subjectId);
 
-  Course? courseForComponent(String componentId) {
-    final comp = componentById(componentId);
-    return comp == null ? null : courseById(comp.courseId);
-  }
+  /// Slots whose subject still exists. Deleting a subject cascades to its
+  /// slots, so this should normally equal [slots] — it guards against a
+  /// hand-edited or partially-migrated import.
+  List<Slot> get activeSlots =>
+      slots.where((s) => subjectById(s.subjectId) != null).toList();
 
-  /// A component counts only if its course is enrolled.
-  bool isComponentEnrolled(String componentId) {
-    final comp = componentById(componentId);
-    return comp != null && enrolledCourseIds.contains(comp.courseId);
-  }
+  int get slotsPerWeek => activeSlots.length;
 
-  /// A slot applies to this student only if they take the course *and* are in
-  /// the batch it was scheduled for.
-  bool isSlotActive(Slot s) =>
-      isComponentEnrolled(s.componentId) &&
-      (s.batch == null || s.batch == selectedBatch);
+  List<Slot> slotsForSubject(String subjectId) =>
+      slots.where((s) => s.subjectId == subjectId).toList();
 
-  List<Component> get enrolledComponents =>
-      components.where((c) => enrolledCourseIds.contains(c.courseId)).toList();
-
-  List<Slot> get enrolledSlots => slots.where(isSlotActive).toList();
-
-  /// Distinct batch labels the timetable defines, for the setup wizard.
-  List<String> get availableBatches {
-    final out = <String>{};
-    for (final s in slots) {
-      if (s.batch != null) out.add(s.batch!);
-    }
-    final list = out.toList()..sort();
-    return list;
-  }
-
-  /// Both sides of every elective pair, grouped. Used by the setup wizard.
-  Map<String, List<Course>> get electiveGroups {
-    final out = <String, List<Course>>{};
-    for (final c in courses) {
-      final g = c.electiveGroup;
-      if (g != null) (out[g] ??= []).add(c);
-    }
-    return out;
-  }
+  List<AttendanceRecord> recordsForSubject(String subjectId) =>
+      records.where((r) => r.subjectId == subjectId).toList();
 
   AppState copyWith({
     Term? term,
-    List<Period>? periods,
-    List<Course>? courses,
-    List<Component>? components,
+    List<Subject>? subjects,
     List<Slot>? slots,
     List<AttendanceRecord>? records,
-    Set<String>? enrolledCourseIds,
-    String? selectedBatch,
     DateTime? lastGeneratedDate,
+    bool clearLastGenerated = false,
     Settings? settings,
   }) => AppState(
     term: term ?? this.term,
-    periods: periods ?? this.periods,
-    courses: courses ?? this.courses,
-    components: components ?? this.components,
+    subjects: subjects ?? this.subjects,
     slots: slots ?? this.slots,
     records: records ?? this.records,
-    enrolledCourseIds: enrolledCourseIds ?? this.enrolledCourseIds,
-    selectedBatch: selectedBatch ?? this.selectedBatch,
-    lastGeneratedDate: lastGeneratedDate ?? this.lastGeneratedDate,
+    lastGeneratedDate: clearLastGenerated
+        ? null
+        : (lastGeneratedDate ?? this.lastGeneratedDate),
     settings: settings ?? this.settings,
   );
 
@@ -147,14 +93,11 @@ class AppState {
     'schemaVersion': schemaVersion,
     'exportedAt': DateTime.now().toIso8601String(),
     if (term != null) 'term': term!.toJson(),
-    'periods': periods.map((e) => e.toJson()).toList(),
-    'courses': courses.map((e) => e.toJson()).toList(),
-    'components': components.map((e) => e.toJson()).toList(),
+    'subjects': subjects.map((e) => e.toJson()).toList(),
     'slots': slots.map((e) => e.toJson()).toList(),
     'records': records.map((e) => e.toJson()).toList(),
-    'enrolledCourseIds': enrolledCourseIds.toList()..sort(),
-    if (selectedBatch != null) 'selectedBatch': selectedBatch,
-    if (lastGeneratedDate != null) 'lastGeneratedDate': dateKey(lastGeneratedDate!),
+    if (lastGeneratedDate != null)
+      'lastGeneratedDate': dateKey(lastGeneratedDate!),
     'settings': settings.toJson(),
   };
 
@@ -162,15 +105,9 @@ class AppState {
     term: j['term'] == null
         ? null
         : Term.fromJson(j['term'] as Map<String, dynamic>),
-    periods: _list(j['periods'], Period.fromJson),
-    courses: _list(j['courses'], Course.fromJson),
-    components: _list(j['components'], Component.fromJson),
+    subjects: _list(j['subjects'], Subject.fromJson),
     slots: _list(j['slots'], Slot.fromJson),
     records: _list(j['records'], AttendanceRecord.fromJson),
-    enrolledCourseIds: ((j['enrolledCourseIds'] as List?) ?? const [])
-        .map((e) => e as String)
-        .toSet(),
-    selectedBatch: j['selectedBatch'] as String?,
     lastGeneratedDate: j['lastGeneratedDate'] == null
         ? null
         : parseDateKey(j['lastGeneratedDate'] as String),
@@ -191,41 +128,53 @@ class AppState {
 class Settings {
   /// Minutes after the last class of the day to fire the confirm nudge.
   final int nudgeOffsetMinutes;
+
+  /// When an untimed class is considered over, and therefore auto-marked.
+  /// Minutes from midnight; defaults to 6 pm.
+  final int dayEndsAtMinutes;
+
   final bool nudgeEnabled;
   final bool weeklySummaryEnabled;
-  final bool preClassRemindersEnabled;
+
+  /// Set once the how-it-works walkthrough has been seen, so it never
+  /// reappears — but it stays reachable from More.
+  final bool hasSeenWalkthrough;
 
   const Settings({
     this.nudgeOffsetMinutes = 30,
+    this.dayEndsAtMinutes = 18 * 60,
     this.nudgeEnabled = true,
     this.weeklySummaryEnabled = true,
-    this.preClassRemindersEnabled = false,
+    this.hasSeenWalkthrough = false,
   });
 
   Settings copyWith({
     int? nudgeOffsetMinutes,
+    int? dayEndsAtMinutes,
     bool? nudgeEnabled,
     bool? weeklySummaryEnabled,
-    bool? preClassRemindersEnabled,
+    bool? hasSeenWalkthrough,
   }) => Settings(
     nudgeOffsetMinutes: nudgeOffsetMinutes ?? this.nudgeOffsetMinutes,
+    dayEndsAtMinutes: dayEndsAtMinutes ?? this.dayEndsAtMinutes,
     nudgeEnabled: nudgeEnabled ?? this.nudgeEnabled,
     weeklySummaryEnabled: weeklySummaryEnabled ?? this.weeklySummaryEnabled,
-    preClassRemindersEnabled:
-        preClassRemindersEnabled ?? this.preClassRemindersEnabled,
+    hasSeenWalkthrough: hasSeenWalkthrough ?? this.hasSeenWalkthrough,
   );
 
   Map<String, dynamic> toJson() => {
     'nudgeOffsetMinutes': nudgeOffsetMinutes,
+    'dayEndsAtMinutes': dayEndsAtMinutes,
     'nudgeEnabled': nudgeEnabled,
     'weeklySummaryEnabled': weeklySummaryEnabled,
-    'preClassRemindersEnabled': preClassRemindersEnabled,
+    'hasSeenWalkthrough': hasSeenWalkthrough,
   };
 
   factory Settings.fromJson(Map<String, dynamic> j) => Settings(
     nudgeOffsetMinutes: j['nudgeOffsetMinutes'] as int? ?? 30,
+    dayEndsAtMinutes: j['dayEndsAtMinutes'] as int? ?? 18 * 60,
     nudgeEnabled: j['nudgeEnabled'] as bool? ?? true,
     weeklySummaryEnabled: j['weeklySummaryEnabled'] as bool? ?? true,
-    preClassRemindersEnabled: j['preClassRemindersEnabled'] as bool? ?? false,
+    hasSeenWalkthrough: j['hasSeenWalkthrough'] as bool? ?? false,
   );
 }

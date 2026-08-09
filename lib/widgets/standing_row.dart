@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logic/stats.dart';
-import '../models/models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 
@@ -13,7 +12,7 @@ import '../theme.dart';
 /// lives on the detail screen. Putting five numbers on a card is what makes
 /// other attendance apps read like spreadsheets.
 class StandingRow extends ConsumerWidget {
-  final ComponentStats stats;
+  final SubjectStats stats;
   final VoidCallback? onTap;
 
   /// Home dims everything that is fine so the eye lands on trouble; Subjects
@@ -29,9 +28,7 @@ class StandingRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appProvider);
-    final component = state.componentById(stats.componentId);
-    final course = state.courseForComponent(stats.componentId);
+    final subject = ref.watch(appProvider).subjectById(stats.subjectId);
 
     final colour = context.risk.of(stats.risk);
     final emphasise = alwaysColour || stats.risk == RiskLevel.danger;
@@ -63,8 +60,7 @@ class StandingRow extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          '${course?.shortName ?? '?'} '
-                          '${component?.kind.label ?? ''}',
+                          subject?.name ?? 'Unknown subject',
                           style: context.text.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -114,7 +110,7 @@ class StandingRow extends ConsumerWidget {
 
 /// A slim progress bar used on the Subjects cards.
 class AttendanceBar extends StatelessWidget {
-  final ComponentStats stats;
+  final SubjectStats stats;
   const AttendanceBar({super.key, required this.stats});
 
   @override

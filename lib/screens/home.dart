@@ -12,6 +12,8 @@ import '../widgets/class_row.dart';
 import '../widgets/standing_row.dart';
 import 'day_editor.dart';
 import 'subject_detail.dart';
+import 'subject_editor.dart';
+import 'timetable_editor.dart';
 
 /// Home merges status and marking into one screen: today's classes on top, a
 /// divider, then how every other subject stands.
@@ -43,22 +45,123 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-        children: [
-          const _SectionLabel('TODAY'),
-          const SizedBox(height: 8),
-          _TodayCard(occurrences: today, extras: extras, now: now),
-          const SizedBox(height: 12),
-          _AddExtraButton(date: now),
-          const SizedBox(height: 28),
-          const Divider(),
-          const SizedBox(height: 20),
-          _Standings(stats: stats),
-        ],
-      ),
+      // Before any subjects exist there is nothing to show and nothing to
+      // mark, so Home becomes a single instruction instead of three empty
+      // sections stacked on top of each other.
+      body: !state.hasSubjects
+          ? const _GettingStarted()
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+              children: [
+                const _SectionLabel('TODAY'),
+                const SizedBox(height: 8),
+                _TodayCard(occurrences: today, extras: extras, now: now),
+                const SizedBox(height: 12),
+                _AddExtraButton(date: now),
+                if (!state.hasTimetable) ...[
+                  const SizedBox(height: 12),
+                  const _NoTimetableBanner(),
+                ],
+                const SizedBox(height: 28),
+                const Divider(),
+                const SizedBox(height: 20),
+                _Standings(stats: stats),
+              ],
+            ),
     );
   }
+}
+
+/// Shown until the first subject exists. Deliberately one instruction rather
+/// than an empty Today card above an empty standings list — a blank app with no
+/// next step is what makes people delete it.
+class _GettingStarted extends StatelessWidget {
+  const _GettingStarted();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.rocket_launch_outlined,
+            size: 40,
+            color: context.colors.primary,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Add your subjects',
+            style: context.text.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Then put them on your weekly timetable, and this app will mark '
+            'you present automatically from there on.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.colors.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 22),
+          FilledButton.icon(
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Add a subject'),
+            onPressed: () => showSubjectEditor(context, null),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Subjects exist but nothing is scheduled, so nothing will ever be
+/// auto-marked. Says that plainly rather than looking like a quiet day.
+class _NoTimetableBanner extends StatelessWidget {
+  const _NoTimetableBanner();
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: context.risk.warning.withValues(alpha: 0.10),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Icon(Icons.grid_view_outlined, size: 20, color: context.risk.warning),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No timetable yet',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Nothing gets marked automatically until you add one.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: context.colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TimetableEditor()),
+            ),
+            child: const Text('Build'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -176,7 +279,7 @@ class _AddExtraButton extends StatelessWidget {
 /// At-risk components sort to the top and are the only ones coloured; the safe
 /// ones stay a quiet list. Capped so Home never becomes a wall of numbers.
 class _Standings extends StatefulWidget {
-  final List<ComponentStats> stats;
+  final List<SubjectStats> stats;
   const _Standings({required this.stats});
 
   @override
@@ -214,7 +317,7 @@ class _StandingsState extends State<_Standings> {
               stats: s,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => SubjectDetailScreen(componentId: s.componentId),
+                  builder: (_) => SubjectDetailScreen(subjectId: s.subjectId),
                 ),
               ),
             ),
