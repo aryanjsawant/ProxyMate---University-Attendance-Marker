@@ -34,10 +34,6 @@ class Occurrence {
   String get key => '${dateKey(date)}#${slot.id}';
 }
 
-/// Key used to match an existing record back to the slot that generated it.
-String recordKey(AttendanceRecord r) =>
-    r.slotId == null ? '${dateKey(r.date)}#adhoc:${r.id}' : '${dateKey(r.date)}#${r.slotId}';
-
 /// True when [date] is inside the term and is not a holiday.
 bool isTeachingDay(AppState s, DateTime date) {
   final term = s.term;
@@ -124,13 +120,3 @@ int? remainingUnits(AppState s, String componentId, DateTime from) {
   return remainingUnitsByComponent(s, from)[componentId] ?? 0;
 }
 
-/// Units per week for a component, for the "how heavy is this subject" line.
-int weeklyUnits(AppState s, String componentId) {
-  var total = 0;
-  for (final slot in s.slots) {
-    if (slot.componentId != componentId) continue;
-    if (!s.isSlotActive(slot)) continue;
-    total += slot.units;
-  }
-  return total;
-}

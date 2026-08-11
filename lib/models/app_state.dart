@@ -193,39 +193,32 @@ class Settings {
   final int nudgeOffsetMinutes;
   final bool nudgeEnabled;
   final bool weeklySummaryEnabled;
-  final bool preClassRemindersEnabled;
 
   const Settings({
     this.nudgeOffsetMinutes = 30,
     this.nudgeEnabled = true,
     this.weeklySummaryEnabled = true,
-    this.preClassRemindersEnabled = false,
   });
 
   Settings copyWith({
     int? nudgeOffsetMinutes,
     bool? nudgeEnabled,
     bool? weeklySummaryEnabled,
-    bool? preClassRemindersEnabled,
   }) => Settings(
     nudgeOffsetMinutes: nudgeOffsetMinutes ?? this.nudgeOffsetMinutes,
     nudgeEnabled: nudgeEnabled ?? this.nudgeEnabled,
     weeklySummaryEnabled: weeklySummaryEnabled ?? this.weeklySummaryEnabled,
-    preClassRemindersEnabled:
-        preClassRemindersEnabled ?? this.preClassRemindersEnabled,
   );
 
   Map<String, dynamic> toJson() => {
     'nudgeOffsetMinutes': nudgeOffsetMinutes,
     'nudgeEnabled': nudgeEnabled,
     'weeklySummaryEnabled': weeklySummaryEnabled,
-    'preClassRemindersEnabled': preClassRemindersEnabled,
   };
 
   factory Settings.fromJson(Map<String, dynamic> j) => Settings(
     nudgeOffsetMinutes: j['nudgeOffsetMinutes'] as int? ?? 30,
     nudgeEnabled: j['nudgeEnabled'] as bool? ?? true,
     weeklySummaryEnabled: j['weeklySummaryEnabled'] as bool? ?? true,
-    preClassRemindersEnabled: j['preClassRemindersEnabled'] as bool? ?? false,
   );
 }

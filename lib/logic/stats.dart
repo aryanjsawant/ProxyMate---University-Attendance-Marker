@@ -195,6 +195,3 @@ List<ComponentStats> allStats(AppState state, {DateTime? now}) {
   return out;
 }
 
-/// Components currently below their own target.
-List<ComponentStats> atRisk(AppState state, {DateTime? now}) =>
-    allStats(state, now: now).where((s) => s.hasData && !s.isAtTarget).toList();

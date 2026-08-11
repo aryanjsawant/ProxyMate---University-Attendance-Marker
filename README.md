@@ -4,7 +4,7 @@ An Android attendance tracker that **assumes you went to class**.
 
 Every scheduled class is marked present the moment it ends. You open the app only when you *skipped* one. Attendance maintains itself, and the question you actually care about — *how many more can I miss and still hold 75%?* — is answered without a single tap.
 
-> **This is the `svnit` branch.** The class timetable, elective pairs and lab batches of the SVNIT B.Tech AI programme are baked in as seed data, so setup is roughly zero taps. Everything except `lib/data/seed_tt.dart` is institution-agnostic — see [What's SVNIT-specific](#whats-svnit-specific) before generalising on `master`.
+> **This build is for SVNIT B.Tech AI students.** The class timetable, elective pairs and lab batches are built in, so setup is a handful of taps rather than entering a schedule. If you are anywhere else, you want the general app on [`master`](https://github.com/aryanjsawant/ProxyMate-University-Attendance-Marker/releases/latest) instead.
 
 ---
 
@@ -178,46 +178,45 @@ Core library desugaring is enabled — `flutter_local_notifications` requires it
 
 ## Tests
 
-68 tests, no device required.
+81 tests, no device required.
 
 | File | Covers |
 |---|---|
 | `stats_test.dart` | Every formula, including boundaries (exactly at target, zero held, unreachable target, 100%-with-no-slack) |
 | `attendance_test.dart` | `catchUp` invariants: manual never overwritten, unelapsed slots not materialised, gap backfill, holidays |
-| `timetable_fidelity_test.dart` | The seed timetable matches the printed sheet: 23 periods/week (27 with honours), tutorial polarity, 2-unit labs, twice-daily sessions |
+| `timetable_fidelity_test.dart` | The seed matches the printed sheet: 23 periods a week (27 with honours) but 20 classes, tutorial polarity, two-period labs counting once, twice-daily sessions |
+| `notifications_test.dart` | When each nudge fires, which days get one, and that the text never claims an attendance outcome it cannot know |
 | `ui_test.dart` | Real widgets: tapping A records an absence, Undo restores it, cancelling leaves the denominator alone, theory/lab render separately |
 
 `timetable_fidelity_test.dart` is the one that matters most on this branch — it's the executable transcription of the printed timetable.
 
 ---
 
-## What's SVNIT-specific
+## How this differs from the general app
 
-Everything below is confined to **`lib/data/seed_tt.dart`** plus a handful of references:
+Both branches share the same engine; only the setup path and the accounting shape differ.
 
-- 8 periods (8:30–9:20 … 5:00–5:50), lunch 12:20–2:00
-- Slot letters A/B/C/D/E/H and lab slots P7/P8/P11/P12
-- Elective pairs: B = AC/PGM, C = IR/IoT&EC, D = AIFS/ABSS, E = ILLM/Agentic AI
-- `seedDefaultEnrolledCourseIds` — the branch owner's own registration
-- Batch-I / Batch-II for the Monday IMAES lab
-- Copy in `setup_wizard.dart` referencing "B.Tech AI timetable"
-- `timetable_fidelity_test.dart`, which asserts this exact timetable
+| | this branch | `master` |
+|---|---|---|
+| Timetable | built in, transcribed from the printed sheet | you enter your own |
+| Setup | pick electives, lab batch, term dates | add subjects, then build a timetable |
+| Electives | slots B/C/D/E each carry a pair; you take one | no such concept |
+| Lab batches | Batch-I / Batch-II for the Monday IMAES lab | no such concept |
+| Theory vs lab | one course, two tracked components | two independent subjects |
+| Timetable shape | 8 fixed periods, slots span periods | any day, any time, optional |
 
-**To generalise on `master`**, the work is roughly:
+Everything institution-specific lives in **`lib/data/seed_tt.dart`**: the 8 period times, slot letters A–E and H, lab slots P7/P8/P11/P12, the elective pairs, and the two lab batches. `timetable_fidelity_test.dart` pins that transcription — 23 periods a week, 20 classes, tutorial polarity, two-period labs — so a mistaken edit fails the build rather than quietly giving the whole class wrong numbers.
 
-1. Ship no seed timetable; open the wizard on *"Build your timetable"* vs *"Import a class timetable"*.
-2. Make the period schedule user-defined (count and times) — the model already supports this; only the wizard hardcodes 8.
-3. Make elective groups an optional concept. Institutions without slot-sharing should never see the word.
-4. Replace `seedDefaultEnrolledCourseIds` with an empty default.
-5. Keep `timetable_fidelity_test.dart` as a fixture-driven test over a sample timetable rather than *the* timetable.
+### Counting
 
-The core — `logic/`, `models/`, `state/`, `screens/`, `widgets/` — needs no changes. It was written against the general model, and SVNIT's timetable is just one instance of it.
+- **A two-period lab is one class.** It displays its real 8:30–10:20 span, but counts once — length and attendance weight are separate things.
+- **Tutorials count with their theory.** For a 3-1-0 course the tutorial sits on the same registration line, so `isTutorial` is a display label rather than a separate component.
 
 ### Known gaps
 
-- **Import lives in Settings**, reachable only after setup — so a backup can't be restored on a clean install. Needs a "Restore from backup" entry on the wizard's first screen.
-- The setup wizard defaults the lab batch to the first one; Batch-II users must change it.
-- No iOS target.
+- **Import lives in Settings**, reachable only after setup, so a backup can't be restored on a clean install.
+- The wizard defaults the lab batch to Batch-I; Batch-II students must change it.
+- No iOS build.
 
 ---
 

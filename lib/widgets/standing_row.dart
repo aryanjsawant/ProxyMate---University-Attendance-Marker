@@ -16,15 +16,10 @@ class StandingRow extends ConsumerWidget {
   final ComponentStats stats;
   final VoidCallback? onTap;
 
-  /// Home dims everything that is fine so the eye lands on trouble; Subjects
-  /// colours every row because comparing them is the point of that screen.
-  final bool alwaysColour;
-
   const StandingRow({
     super.key,
     required this.stats,
     this.onTap,
-    this.alwaysColour = false,
   });
 
   @override
@@ -34,7 +29,8 @@ class StandingRow extends ConsumerWidget {
     final course = state.courseForComponent(stats.componentId);
 
     final colour = context.risk.of(stats.risk);
-    final emphasise = alwaysColour || stats.risk == RiskLevel.danger;
+    // Only trouble is coloured, so the eye lands on it rather than scanning.
+    final emphasise = stats.risk == RiskLevel.danger;
 
     return InkWell(
       onTap: onTap,
