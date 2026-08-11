@@ -45,9 +45,9 @@ jobs:
         run: |
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
-             dist/proxymate-svnit-${{ github.ref_name }}-arm64.apk
+             dist/proxymate-${{ github.ref_name }}-arm64.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
-             dist/proxymate-svnit-${{ github.ref_name }}-arm32.apk
+             dist/proxymate-${{ github.ref_name }}-arm32.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -60,7 +60,7 @@ jobs:
             For **SVNIT B.Tech AI** students — the class timetable is already
             built in, so setup is just picking your electives and lab batch.
 
-            Download **`proxymate-svnit-${{ github.ref_name }}-arm64.apk`**; that
+            Download **`proxymate-${{ github.ref_name }}-arm64.apk`**; that
             is right for essentially every phone made since 2017. Use the
             `arm32` build only if the arm64 one refuses to install.
 
