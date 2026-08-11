@@ -1,3 +1,12 @@
+import java.util.Properties
+
+// Machine-specific overrides. Gitignored, so CI and other developers are
+// unaffected by anything set here.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -8,12 +17,12 @@ android {
     namespace = "com.aryan.proxymate"
     compileSdk = flutter.compileSdkVersion
 
-    // Pinned rather than flutter.ndkVersion (28.2.13676358): that version is a
-    // failed partial install on this machine (no source.properties), so AGP
-    // tries to re-download it and fails. 27.1.12297006 is complete and locally
-    // present. Nothing here ships native code, so the NDK is only satisfying
-    // AGP's configure-time check.
-    ndkVersion = "27.1.12297006"
+    // Normally just flutter.ndkVersion. One dev machine has a corrupt install
+    // of that version, so it can be overridden per-machine by adding
+    //   ndk.version=27.1.12297006
+    // to android/local.properties, which is gitignored. CI and every other
+    // machine get the default and download it normally.
+    ndkVersion = localProps.getProperty("ndk.version") ?: flutter.ndkVersion
 
     compileOptions {
         // flutter_local_notifications uses java.time on minSdk < 26, so it

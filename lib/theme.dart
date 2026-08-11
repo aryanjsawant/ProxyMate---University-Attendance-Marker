@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'logic/stats.dart';
@@ -69,6 +70,25 @@ ThemeData buildTheme(Brightness brightness) {
     brightness: brightness,
   );
 
+  // AppBarTheme.titleTextStyle *replaces* the default text style rather than
+  // merging with it, so a bare TextStyle here would drop the theme's font
+  // family and fall back to whatever the platform picks. Derive it from the
+  // typography instead.
+  final baseTitle = Typography.material2021(
+    platform: defaultTargetPlatform,
+    colorScheme: scheme,
+  );
+  final titleStyle =
+      (brightness == Brightness.dark
+              ? baseTitle.white
+              : baseTitle.black)
+          .titleLarge
+          ?.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurface,
+          );
+
   return ThemeData(
     colorScheme: scheme,
     useMaterial3: true,
@@ -88,11 +108,7 @@ ThemeData buildTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        color: scheme.onSurface,
-      ),
+      titleTextStyle: titleStyle,
     ),
     navigationBarTheme: NavigationBarThemeData(
       elevation: 0,

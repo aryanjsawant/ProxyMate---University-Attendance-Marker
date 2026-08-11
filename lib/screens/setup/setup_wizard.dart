@@ -35,7 +35,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
   DateTime? _end;
   double _target = 0.75;
 
-  static const _pageCount = 4;
+  static const _pageCount = 5;
 
   @override
   void dispose() {
@@ -72,7 +72,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
 
   @override
   Widget build(BuildContext context) {
-    final canSkipToEnd = _page == 2 || _page == 3;
+    final canSkipToEnd = _page == 2;
 
     return Scaffold(
       body: SafeArea(
@@ -114,6 +114,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
                     onEnd: (d) => setState(() => _end = d),
                     onTarget: (t) => setState(() => _target = t),
                   ),
+                  const _NotificationsPage(),
                 ],
               ),
             ),
@@ -143,7 +144,7 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
                   FilledButton(
                     onPressed: _next,
                     child: Text(
-                      _page == _pageCount - 1 ? 'Start tracking' : 'Next',
+                      _page == _pageCount - 1 ? 'Turn on & finish' : 'Next',
                     ),
                   ),
                 ],
@@ -347,8 +348,8 @@ class _SubjectsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Add each one you want tracked. Labs are their own subject — colleges '
-          'usually enforce a separate 75% on them.',
+          'Add every subject you want tracked. Anything your college marks '
+          'attendance for separately should be its own subject here.',
           style: TextStyle(
             color: context.colors.onSurfaceVariant,
             height: 1.5,
@@ -491,6 +492,48 @@ class _TermPage extends StatelessWidget {
         'Attendance is counted from the start date. Anything before it is '
         'ignored.',
         style: TextStyle(color: context.colors.onSurfaceVariant),
+      ),
+      const SizedBox(height: 16),
+      Card(
+        color: context.colors.primaryContainer.withValues(alpha: 0.45),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.history_toggle_off,
+                size: 20,
+                color: context.colors.primary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Setting this up mid-term? Already handled.',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Every class on your timetable between the start date '
+                      'and today is filled in as present the moment you '
+                      'finish — so weeks you have already sat through are '
+                      'counted without you entering anything. Then just go '
+                      'back through History and mark the ones you missed.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.5,
+                        color: context.colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       const SizedBox(height: 20),
       Card(
@@ -696,6 +739,200 @@ class _Legend extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// The last slide, immediately before the OS permission prompt fires.
+///
+/// Placed here deliberately: a permission dialog that arrives with no context
+/// gets denied, and a denied notification permission quietly removes the safety
+/// net that makes assuming-present trustworthy. So this shows the three
+/// notifications as they will actually look, rather than describing them.
+class _NotificationsPage extends StatelessWidget {
+  const _NotificationsPage();
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+    children: [
+      Text(
+        'Let it watch your back',
+        style: context.text.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        'Three notifications, and they are the reason assuming-present is safe '
+        'to rely on.',
+        style: TextStyle(
+          color: context.colors.onSurfaceVariant,
+          height: 1.5,
+        ),
+      ),
+      const SizedBox(height: 22),
+      _NotifPreview(
+        icon: Icons.done_all,
+        accent: context.risk.safe,
+        title: 'Marked you present for 5 classes',
+        body: 'Miss any? Tap to fix it.',
+        caption:
+            'Every evening, after your last class. If it is right, ignore it — '
+            'that is the whole interaction. This is what stops a forgotten '
+            'bunk from quietly sitting in your record as a present.',
+      ),
+      _NotifPreview(
+        icon: Icons.warning_amber_rounded,
+        accent: context.risk.danger,
+        title: 'Operating Systems dropped below 75%',
+        body: 'Attend next 4 to reach 75%',
+        caption:
+            'The instant a bunk takes a subject under your target — not a week '
+            'later when it is harder to climb back.',
+      ),
+      _NotifPreview(
+        icon: Icons.calendar_view_week,
+        accent: context.colors.primary,
+        title: 'Weekly attendance check',
+        body: 'See where you stand before the week starts.',
+        caption: 'Sunday evening, so you can plan which classes are skippable.',
+      ),
+      const SizedBox(height: 4),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 19,
+                color: context.risk.safe,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Nothing leaves your phone',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'These are scheduled by Android itself, not sent from a '
+                      'server. This app has no internet permission at all — it '
+                      'could not upload your attendance if it tried.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.5,
+                        color: context.colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Text(
+        'Android will ask for permission next. You can change any of this later '
+        'in More → Notifications.',
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.45,
+          color: context.colors.onSurfaceVariant,
+        ),
+      ),
+    ],
+  );
+}
+
+class _NotifPreview extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String body;
+  final String caption;
+
+  const _NotifPreview({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.body,
+    required this.caption,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // A mock notification shade entry, so the value is obvious at a glance.
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.colors.surfaceContainerHighest.withValues(
+              alpha: 0.55,
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 17, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      body,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: context.colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            caption,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.45,
+              color: context.colors.onSurfaceVariant,
+            ),
           ),
         ),
       ],

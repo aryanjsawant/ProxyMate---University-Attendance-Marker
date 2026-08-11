@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Release binaries live on GitHub Releases, not in git history.
+/apk/
