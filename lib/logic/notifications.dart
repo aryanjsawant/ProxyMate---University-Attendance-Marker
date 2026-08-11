@@ -7,6 +7,76 @@ import 'package:timezone/timezone.dart' as tz;
 import '../models/app_state.dart';
 import 'stats.dart';
 
+/// One scheduled end-of-day nudge, computed without touching the platform so
+/// it can be tested. [Notifications] turns these into actual alarms.
+class NudgePlan {
+  final int weekday;
+  final int hour;
+  final int minute;
+  final String title;
+  final String body;
+
+  const NudgePlan({
+    required this.weekday,
+    required this.hour,
+    required this.minute,
+    required this.title,
+    required this.body,
+  });
+
+  int get minuteOfDay => hour * 60 + minute;
+
+  @override
+  String toString() =>
+      'NudgePlan(day $weekday at $hour:${minute.toString().padLeft(2, '0')})';
+}
+
+/// Work out when each weekday's nudge should fire and what it should say.
+///
+/// The text states how many classes the *timetable* has, never what was
+/// recorded. Android holds the text from the moment the alarm is scheduled and
+/// fires it with nothing of ours running, so any claim about attendance would
+/// be a guess that goes stale the moment the user marks something.
+List<NudgePlan> buildNudgePlans(AppState state) {
+  final dayEnd = state.settings.dayEndsAtMinutes;
+  final out = <NudgePlan>[];
+
+  for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++) {
+    final slots = state.activeSlots.where((s) => s.weekday == weekday).toList();
+    if (slots.isEmpty) continue;
+
+    var lastEnd = 0;
+    for (final s in slots) {
+      // Untimed classes settle at the configured end of day, so that is when
+      // the day's confirmation starts making sense.
+      final end = s.effectiveEndMin(dayEnd);
+      if (end > lastEnd) lastEnd = end;
+    }
+
+    // Clamped to 23:59 rather than allowed to wrap. `(fireAt ~/ 60) % 24` used
+    // to roll a late finish past midnight back to the small hours of the *same*
+    // weekday — so an 11pm class with a 2-hour delay fired its reminder at 1am,
+    // twenty-two hours early. Landing at the end of the correct day is right;
+    // spilling onto the next weekday would mislabel which day it summarises.
+    final fireAt = (lastEnd + state.settings.nudgeOffsetMinutes)
+        .clamp(0, 23 * 60 + 59);
+
+    final count = slots.length;
+    out.add(
+      NudgePlan(
+        weekday: weekday,
+        hour: fireAt ~/ 60,
+        minute: fireAt % 60,
+        title: count == 1
+            ? 'You had 1 class today'
+            : 'You had $count classes today',
+        body: 'Missed any and not marked it yet? Tap to fix.',
+      ),
+    );
+  }
+  return out;
+}
+
 /// Local notifications only — no Firebase, no push server, no backend.
 ///
 /// Attendance correctness never depends on these firing. They are a convenience
@@ -46,12 +116,8 @@ class Notifications {
       try {
         tz.setLocalLocation(tz.getLocation(await _resolveTimeZone()));
       } catch (e) {
-        debugPrint('ProxyMate: timezone fallback (${e.toString()})');
-        try {
-          tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
-        } catch (_) {
-          /* keep the package default */
-        }
+        debugPrint('ProxyMate: timezone lookup failed ($e), using offset');
+        _setZoneFromDeviceOffset();
       }
 
       await _plugin.initialize(
@@ -103,12 +169,34 @@ class Notifications {
             AndroidFlutterLocalNotificationsPlugin
           >();
 
-  Future<String> _resolveTimeZone() async {
+  Future<String> _resolveTimeZone() async =>
+      (await FlutterTimezone.getLocalTimezone()).identifier;
+
+  /// Last resort when the device reports a zone name the tz database doesn't
+  /// carry: pick any zone whose current UTC offset matches the device's.
+  ///
+  /// Deliberately not a hardcoded region. This app is used wherever its user
+  /// is, and defaulting everyone to one country's clock would fire every
+  /// reminder at the wrong time for anybody outside it — a silent, confusing
+  /// failure. Matching the offset is right by construction for the only thing
+  /// that matters here, which is what "6 pm local" means.
+  void _setZoneFromDeviceOffset() {
+    final offset = DateTime.now().timeZoneOffset;
+    final now = DateTime.now().toUtc();
     try {
-      return (await FlutterTimezone.getLocalTimezone()).identifier;
-    } catch (_) {
-      return 'Asia/Kolkata';
+      for (final location in tz.timeZoneDatabase.locations.values) {
+        if (tz.TZDateTime.from(now, location).timeZoneOffset == offset) {
+          tz.setLocalLocation(location);
+          debugPrint('ProxyMate: timezone set to ${location.name} by offset');
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('ProxyMate: offset-based timezone failed ($e)');
     }
+    // Leaving tz.local at its UTC default is still better than throwing:
+    // notifications fire, just possibly at an odd hour, and the Settings
+    // status row will at least show them as scheduled.
   }
 
   Future<bool> requestPermission() async {
@@ -159,33 +247,16 @@ class Notifications {
   /// already marked an absence. It states the schedule instead, which is a
   /// fact known at schedule time.
   Future<void> _scheduleDailyNudges(AppState state) async {
-    for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++) {
-      final slots = state.activeSlots.where((s) => s.weekday == weekday);
-      if (slots.isEmpty) continue;
-
-      // Untimed classes settle at the configured end of day, so that acts as
-      // the floor for when the day's confirmation makes sense.
-      final dayEnd = state.settings.dayEndsAtMinutes;
-      var lastEnd = 0;
-      var count = 0;
-      for (final s in slots) {
-        count++;
-        final end = s.effectiveEndMin(dayEnd);
-        if (end > lastEnd) lastEnd = end;
-      }
-      if (lastEnd == 0) continue;
-
-      final fireAt = lastEnd + state.settings.nudgeOffsetMinutes;
-      final hour = (fireAt ~/ 60) % 24;
-      final minute = fireAt % 60;
-
+    for (final plan in buildNudgePlans(state)) {
       await _plugin.zonedSchedule(
-        id: _nudgeBase + weekday,
-        title: count == 1
-            ? 'You had 1 class today'
-            : 'You had $count classes today',
-        body: 'Missed any and not marked it yet? Tap to fix.',
-        scheduledDate: nextInstanceOfWeekday(weekday, hour, minute),
+        id: _nudgeBase + plan.weekday,
+        title: plan.title,
+        body: plan.body,
+        scheduledDate: nextInstanceOfWeekday(
+          plan.weekday,
+          plan.hour,
+          plan.minute,
+        ),
         notificationDetails: _details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
