@@ -27,12 +27,32 @@ class Notifications {
   static const _summaryId = 200;
   static const _alertId = 300;
 
+  /// Why notifications are unavailable, if they are. Surfaced in Settings —
+  /// a silent failure here means the user simply never hears from the app
+  /// again and has no way to find out why.
+  String? lastError;
+
+  bool get isReady => _ready;
+
   Future<void> init() async {
     if (_ready) return;
     try {
       tzdata.initializeTimeZones();
-      // Repeating alarms drift or silently fail if the local zone isn't set.
-      tz.setLocalLocation(tz.getLocation(await _resolveTimeZone()));
+
+      // Timezone resolution is its own try: a device reporting a zone name the
+      // tz database doesn't carry used to throw here and abort the whole
+      // init, which silently disabled *every* notification. Falling back to a
+      // fixed zone costs at most an hour of drift; failing costs the feature.
+      try {
+        tz.setLocalLocation(tz.getLocation(await _resolveTimeZone()));
+      } catch (e) {
+        debugPrint('ProxyMate: timezone fallback (${e.toString()})');
+        try {
+          tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
+        } catch (_) {
+          /* keep the package default */
+        }
+      }
 
       await _plugin.initialize(
         settings: const InitializationSettings(
@@ -50,8 +70,30 @@ class Notifications {
         ),
       );
       _ready = true;
+      lastError = null;
     } catch (e) {
-      debugPrint('Notifications unavailable: $e');
+      lastError = e.toString();
+      debugPrint('ProxyMate: notifications unavailable: $e');
+    }
+  }
+
+  /// How many notifications Android currently holds for this app. Zero while
+  /// a timetable exists means something went wrong arming them.
+  Future<int> pendingCount() async {
+    if (!_ready) return 0;
+    try {
+      return (await _plugin.pendingNotificationRequests()).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<bool> permissionGranted() async {
+    if (!_ready) return false;
+    try {
+      return await _android?.areNotificationsEnabled() ?? false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -106,9 +148,16 @@ class Notifications {
   /// One weekly-repeating notification per weekday that actually has classes,
   /// fired at *last class end + offset*.
   ///
-  /// Its whole job is to make the auto-present model trustworthy: "here's what
-  /// I recorded for you, fix it if I'm wrong." The happy path is a dismiss,
-  /// which is a genuine no-op because present is already the default.
+  /// Its whole job is to make the auto-present model trustworthy: a daily
+  /// prompt to correct anything the app got wrong.
+  ///
+  /// **The text may not claim what was recorded.** Android holds the title and
+  /// body from the moment they are scheduled and fires them with the app not
+  /// running, so nothing here can know what the user actually marked — it only
+  /// knows how many classes the *timetable* has that weekday. Saying "marked
+  /// you present for 4 classes" was therefore a lie whenever the user had
+  /// already marked an absence. It states the schedule instead, which is a
+  /// fact known at schedule time.
   Future<void> _scheduleDailyNudges(AppState state) async {
     for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++) {
       final slots = state.activeSlots.where((s) => s.weekday == weekday);
@@ -132,9 +181,10 @@ class Notifications {
 
       await _plugin.zonedSchedule(
         id: _nudgeBase + weekday,
-        title:
-            'Marked you present for $count ${count == 1 ? 'class' : 'classes'}',
-        body: 'Miss any? Tap to fix it.',
+        title: count == 1
+            ? 'You had 1 class today'
+            : 'You had $count classes today',
+        body: 'Missed any and not marked it yet? Tap to fix.',
         scheduledDate: nextInstanceOfWeekday(weekday, hour, minute),
         notificationDetails: _details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

@@ -249,11 +249,14 @@ class SettingsScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.send_outlined),
                 title: const Text('Send a test notification'),
+                subtitle: const Text('Should arrive immediately'),
                 onTap: () async {
                   await Notifications.instance.requestPermission();
                   await Notifications.instance.sendTest();
                 },
               ),
+              const Divider(indent: 16, endIndent: 16),
+              const _NotificationStatusTile(),
             ],
           ),
           _Group(
@@ -450,6 +453,97 @@ class _TargetTile extends ConsumerWidget {
             notifier.setTargetForSubject(s.id, v);
           }
         },
+      ),
+    );
+  }
+}
+
+/// Makes a silent notification failure visible.
+///
+/// Everything about this feature happens outside the app — Android holds the
+/// alarms and fires them with nothing of ours running — so when it breaks the
+/// only symptom is that the user simply never hears from the app again. This
+/// says whether the permission is granted and how many alarms Android is
+/// actually holding.
+class _NotificationStatusTile extends ConsumerStatefulWidget {
+  const _NotificationStatusTile();
+
+  @override
+  ConsumerState<_NotificationStatusTile> createState() =>
+      _NotificationStatusTileState();
+}
+
+class _NotificationStatusTileState
+    extends ConsumerState<_NotificationStatusTile> {
+  int? _pending;
+  bool? _granted;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final pending = await Notifications.instance.pendingCount();
+    final granted = await Notifications.instance.permissionGranted();
+    if (mounted) {
+      setState(() {
+        _pending = pending;
+        _granted = granted;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(appProvider);
+    final error = Notifications.instance.lastError;
+
+    final (IconData icon, Color colour, String text) = switch ((
+      Notifications.instance.isReady,
+      _granted,
+      _pending,
+    )) {
+      (false, _, _) => (
+        Icons.error_outline,
+        context.risk.danger,
+        'Could not start: ${error ?? 'unknown error'}',
+      ),
+      (_, false, _) => (
+        Icons.notifications_off_outlined,
+        context.risk.danger,
+        'Blocked by Android — enable them in system settings',
+      ),
+      (_, _, final int n) when n == 0 && state.hasTimetable => (
+        Icons.warning_amber_rounded,
+        context.risk.warning,
+        'Nothing scheduled. Try toggling the end-of-day check off and on.',
+      ),
+      (_, _, final int n) when n == 0 => (
+        Icons.info_outline,
+        context.colors.onSurfaceVariant,
+        'Nothing scheduled yet — add a timetable first',
+      ),
+      (_, _, final int n) => (
+        Icons.check_circle_outline,
+        context.risk.safe,
+        '$n scheduled and waiting',
+      ),
+      _ => (
+        Icons.hourglass_empty,
+        context.colors.onSurfaceVariant,
+        'Checking…',
+      ),
+    };
+
+    return ListTile(
+      leading: Icon(icon, color: colour),
+      title: const Text('Status'),
+      subtitle: Text(text, style: TextStyle(color: colour)),
+      trailing: IconButton(
+        icon: const Icon(Icons.refresh, size: 18),
+        onPressed: _refresh,
       ),
     );
   }
