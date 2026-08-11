@@ -69,7 +69,9 @@ void main() {
       expect(find.byType(StatusToggle), findsNWidgets(5));
     });
 
-    testWidgets('the 2-period lab is labelled as such', (tester) async {
+    testWidgets('a two-hour lab still shows its length', (tester) async {
+      // Length and attendance weight are different things: the lab runs two
+      // periods but counts as one class, and the row must say the former.
       await pump(tester, const HomeScreen());
       expect(find.textContaining('2 periods'), findsOneWidget);
     });

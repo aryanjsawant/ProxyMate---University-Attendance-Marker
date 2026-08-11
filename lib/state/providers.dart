@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/store.dart';
@@ -33,6 +35,15 @@ class AppController extends Notifier<AppState> {
     state = saved ?? const AppState();
     _loaded = true;
     refreshNow();
+
+    // Re-arm on every launch. Alarms were previously only scheduled when the
+    // timetable or settings changed, so anything that cleared them — a
+    // force-stop, an app update, an OEM battery sweep, or the initial
+    // scheduling failing — left the user with no notifications and no way to
+    // recover. Rescheduling is idempotent.
+    if (state.isConfigured) {
+      unawaited(Notifications.instance.reschedule(state));
+    }
   }
 
   /// Run catch-up against the current time. Cheap and idempotent, so it is safe

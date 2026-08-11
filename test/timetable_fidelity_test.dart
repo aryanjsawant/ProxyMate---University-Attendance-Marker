@@ -18,10 +18,10 @@ void main() {
       return occurrencesOn(
         s,
         day,
-      ).fold(0, (sum, o) => sum + o.slot.units);
+      ).fold(0, (sum, o) => sum + o.slot.spanPeriods);
     }
 
-    test('non-honours student has 23 periods a week', () {
+    test('non-honours student sits through 23 periods a week', () {
       expect(unitsOn(monday), 6, reason: '4 lectures + a 2-period IMAES lab');
       expect(unitsOn(tuesday), 4);
       expect(unitsOn(wednesday), 4);
@@ -54,7 +54,8 @@ void main() {
       expect(weekFor('ai401-th').length, 3);
       final lab = weekFor('ai401-lab');
       expect(lab.length, 1);
-      expect(lab.single.slot.units, 2);
+      expect(lab.single.slot.spanPeriods, 2, reason: 'runs two periods');
+      expect(lab.single.slot.units, 1, reason: 'but is one attendance');
     });
 
     test('AI455 IR is 3-1-0: three lectures and one tutorial', () {
@@ -66,12 +67,14 @@ void main() {
 
     test('AI451 AC is 3 theory + a 2-period lab', () {
       expect(weekFor('ai451-th').length, 3);
-      expect(weekFor('ai451-lab').single.slot.units, 2);
+      expect(weekFor('ai451-lab').single.slot.spanPeriods, 2);
+      expect(weekFor('ai451-lab').single.slot.units, 1);
     });
 
     test('AI463 ILLM is 3 theory + a 2-period lab', () {
       expect(weekFor('ai463-th').length, 3);
-      expect(weekFor('ai463-lab').single.slot.units, 2);
+      expect(weekFor('ai463-lab').single.slot.spanPeriods, 2);
+      expect(weekFor('ai463-lab').single.slot.units, 1);
     });
 
     test('honours AI411 is four sessions, one of them a tutorial', () {
@@ -155,13 +158,13 @@ void main() {
         enrolledState(courseIds: {'ai401', 'ai451', 'ai455', 'ai459', 'ai463'}),
         monday,
         friday,
-      ).fold(0, (s, o) => s + o.slot.units);
+      ).fold(0, (s, o) => s + o.slot.spanPeriods);
 
       final b = expandSlots(
         enrolledState(courseIds: {'ai401', 'ai453', 'ai457', 'ai461', 'ai465'}),
         monday,
         friday,
-      ).fold(0, (s, o) => s + o.slot.units);
+      ).fold(0, (s, o) => s + o.slot.spanPeriods);
 
       expect(a, 23);
       expect(b, 23);
@@ -173,7 +176,8 @@ void main() {
       final occ = occurrencesOn(enrolledState(batch: 'Batch-I'), monday)
           .firstWhere((o) => o.slot.componentId == 'ai401-lab');
       expect(occ.startPeriod.index, 5);
-      expect(occ.slot.units, 2);
+      expect(occ.slot.spanPeriods, 2);
+      expect(occ.slot.units, 1);
     });
 
     test('Batch-II gets the 4:00 one instead', () {
@@ -205,13 +209,14 @@ void main() {
       expect(thu[1].startPeriod.index, 8);
     });
 
-    test('a 2-period lab spans both periods and counts 2 units', () {
+    test('a 2-period lab spans both periods but counts as one class', () {
       final lab = occurrencesOn(enrolledState(), thursday)
           .firstWhere((o) => o.slot.componentId == 'ai451-lab');
 
       expect(lab.startPeriod.index, 1);
       expect(lab.endPeriod.index, 2);
-      expect(lab.slot.units, 2);
+      expect(lab.slot.spanPeriods, 2);
+      expect(lab.slot.units, 1);
       // 8:30 -> 10:20
       expect(lab.startsAt.hour, 8);
       expect(lab.startsAt.minute, 30);

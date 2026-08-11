@@ -41,7 +41,7 @@ class ClassRow extends ConsumerWidget {
         'Tutorial'
       else
         component?.kind.label ?? 'Class',
-      if (slot.units > 1) '${slot.units} periods',
+      if (slot.spanPeriods > 1) '${slot.spanPeriods} periods',
       if (slot.batch != null) slot.batch!,
     ].join(' · ');
 
@@ -386,7 +386,7 @@ class ExtraClassRow extends ConsumerWidget {
                 Text(
                   [
                     component?.kind.label ?? '',
-                    if (record.units > 1) '${record.units} periods',
+                    if (record.units > 1) 'counts ${record.units}',
                     if (record.note != null) record.note!,
                   ].where((e) => e.isNotEmpty).join(' · '),
                   style: TextStyle(

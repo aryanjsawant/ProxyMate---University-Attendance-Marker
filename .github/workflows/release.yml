@@ -1,0 +1,69 @@
+name: Release
+
+# Push a tag to publish a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# Builds the APKs on GitHub's runners and attaches them to a GitHub Release, so
+# binaries never have to be committed to the repo.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Name the artifacts
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+             dist/proxymate-svnit-${{ github.ref_name }}-arm64.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+             dist/proxymate-svnit-${{ github.ref_name }}-arm32.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            For **SVNIT B.Tech AI** students — the class timetable is already
+            built in, so setup is just picking your electives and lab batch.
+
+            Download **`proxymate-svnit-${{ github.ref_name }}-arm64.apk`**; that
+            is right for essentially every phone made since 2017. Use the
+            `arm32` build only if the arm64 one refuses to install.
+
+            Open the file on your phone, allow installs from that source, and
+            tap Install. Android may warn that the app is unrecognised; that is
+            normal for anything not distributed through the Play Store.

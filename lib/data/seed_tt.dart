@@ -1,4 +1,4 @@
-/// The M.Tech AI class timetable, transcribed from the printed sheet.
+/// The B.Tech AI class timetable, transcribed from the printed sheet.
 ///
 /// This is the *class* timetable, not any one student's: slots B, C, D and E
 /// each carry an elective pair (`AI455/AI457`) and the student takes exactly
@@ -7,8 +7,9 @@
 /// forms.
 ///
 /// Sanity check encoded in the tests: a student taking AI401 + one each of
-/// B/C/D/E has 23 periods a week (Mon 6, Tue 4, Wed 4, Thu 4, Fri 5); adding
-/// the honours AI411 makes it 27.
+/// B/C/D/E sits through 23 periods a week (Mon 6, Tue 4, Wed 4, Thu 4,
+/// Fri 5), and 27 with the honours AI411. Those are *periods*; the
+/// attendance count is lower, because each two-period lab is one class.
 library;
 
 import '../models/app_state.dart';
@@ -227,6 +228,7 @@ const seedSlots = <Slot>[
     weekday: _mon,
     periodIndex: 5,
     spanPeriods: 2,
+    units: 1, // two hours long, but one attendance
     batch: 'Batch-I',
     room: 'Computing Lab-02, Ground Floor, DoAI',
   ),
@@ -237,6 +239,7 @@ const seedSlots = <Slot>[
     weekday: _mon,
     periodIndex: 7,
     spanPeriods: 2,
+    units: 1, // two hours long, but one attendance
     batch: 'Batch-II',
     room: 'Computing Lab-02, Ground Floor, DoAI',
   ),
@@ -281,6 +284,7 @@ const seedSlots = <Slot>[
     weekday: _thu,
     periodIndex: 1,
     spanPeriods: 2,
+    units: 1, // two hours long, but one attendance
     room: 'M.Tech Project Lab 1, 4th Floor CS Dept',
   ),
   Slot(
@@ -289,6 +293,7 @@ const seedSlots = <Slot>[
     weekday: _thu,
     periodIndex: 1,
     spanPeriods: 2,
+    units: 1, // two hours long, but one attendance
     room: 'M.Tech Project Lab 2, 4th Floor CS Dept',
   ),
   // P3-P4 — lab slot P8
@@ -298,6 +303,7 @@ const seedSlots = <Slot>[
     weekday: _thu,
     periodIndex: 3,
     spanPeriods: 2,
+    units: 1, // two hours long, but one attendance
     room: 'M.Tech Project Lab 1, 4th Floor CS Dept',
   ),
   Slot(
@@ -306,6 +312,7 @@ const seedSlots = <Slot>[
     weekday: _thu,
     periodIndex: 3,
     spanPeriods: 2,
+    units: 1, // two hours long, but one attendance
     room: 'M.Tech Project Lab 2, 4th Floor CS Dept',
   ),
   // P7, P8 — slot H twice in one day, the exact case other apps can't express

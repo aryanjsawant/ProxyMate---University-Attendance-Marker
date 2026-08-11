@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:path_provider/path_provider.dart';
 
 import '../models/app_state.dart';
@@ -33,10 +35,17 @@ class Store {
   /// Written to a temp file and renamed, so a crash mid-write can't leave a
   /// half-serialized document where the semester's records used to be.
   Future<void> save(AppState state) async {
-    final f = await _file();
-    final tmp = File('${f.path}.tmp');
-    await tmp.writeAsString(encode(state), flush: true);
-    await tmp.rename(f.path);
+    // Callers treat this as fire-and-forget, so an uncaught error here would
+    // take down the zone rather than lose one write. The next commit rewrites
+    // the whole document anyway.
+    try {
+      final f = await _file();
+      final tmp = File('${f.path}.tmp');
+      await tmp.writeAsString(encode(state), flush: true);
+      await tmp.rename(f.path);
+    } catch (e) {
+      debugPrint('ProxyMate: could not save state: $e');
+    }
   }
 
   Future<File> writeExport(AppState state) async {

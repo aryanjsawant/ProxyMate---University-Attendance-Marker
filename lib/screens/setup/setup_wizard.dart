@@ -242,7 +242,7 @@ class _WelcomePage extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'M.Tech AI timetable loaded',
+                      'B.Tech AI timetable loaded',
                       style: context.text.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),

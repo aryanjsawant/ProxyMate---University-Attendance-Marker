@@ -13,14 +13,14 @@ void main() {
   final endOfWeek = DateTime(2026, 8, 7, 18, 0);
 
   group('catch-up backfills presence', () {
-    test('a full elapsed week materialises 23 units as auto-present', () {
+    test('a full elapsed week materialises 20 classes as auto-present', () {
       final s = catchUp(
         enrolledState().copyWith(lastGeneratedDate: monday),
         endOfWeek,
       );
 
       final units = s.records.fold(0, (a, r) => a + r.units);
-      expect(units, 23);
+      expect(units, 20, reason: '23 periods, but each lab is one class');
       expect(s.records.every((r) => r.status == Status.present), isTrue);
       expect(s.records.every((r) => !r.isManual), isTrue);
     });
@@ -57,7 +57,7 @@ void main() {
         enrolledState().copyWith(lastGeneratedDate: monday),
         DateTime(2026, 8, 10, 8, 0), // the following Monday, before class
       );
-      expect(s.records.fold(0, (a, r) => a + r.units), 23);
+      expect(s.records.fold(0, (a, r) => a + r.units), 20);
     });
 
     test('holidays generate nothing', () {
@@ -66,7 +66,7 @@ void main() {
       s = catchUp(s, endOfWeek);
 
       expect(s.records.any((r) => dateOnly(r.date) == wednesday), isFalse);
-      expect(s.records.fold(0, (a, r) => a + r.units), 23 - 4);
+      expect(s.records.fold(0, (a, r) => a + r.units), 20 - 4);
     });
 
     test('dates past the term end generate nothing', () {
@@ -75,7 +75,7 @@ void main() {
       s = catchUp(s, endOfWeek);
 
       expect(s.records.any((r) => dateOnly(r.date).isAfter(wednesday)), isFalse);
-      expect(s.records.fold(0, (a, r) => a + r.units), 6 + 4 + 4);
+      expect(s.records.fold(0, (a, r) => a + r.units), 5 + 4 + 4);
     });
 
     test('an elective you did not take generates nothing', () {
@@ -157,7 +157,7 @@ void main() {
       expect(theoryAfter.percent, theoryBefore.percent);
       expect(theoryAfter.held, theoryBefore.held);
       expect(labAfter.attended, 0);
-      expect(labAfter.held, 2, reason: 'a 2-period lab weighs 2 units');
+      expect(labAfter.held, 1, reason: 'a lab is one class however long it runs');
     });
   });
 

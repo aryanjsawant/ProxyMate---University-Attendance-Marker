@@ -4,52 +4,33 @@ An Android attendance tracker that **assumes you went to class**.
 
 Every scheduled class is marked present the moment it ends. You open the app only when you *skipped* one. Attendance maintains itself, and the question you actually care about — *how many more can I miss and still hold 75%?* — is answered without a single tap.
 
-> **This is the `svnit` branch.** The class timetable, elective pairs and lab batches of the SVNIT M.Tech AI programme are baked in as seed data, so setup is roughly zero taps. Everything except `lib/data/seed_tt.dart` is institution-agnostic — see [What's SVNIT-specific](#whats-svnit-specific) before generalising on `master`.
+> **This is the `svnit` branch.** The class timetable, elective pairs and lab batches of the SVNIT B.Tech AI programme are baked in as seed data, so setup is roughly zero taps. Everything except `lib/data/seed_tt.dart` is institution-agnostic — see [What's SVNIT-specific](#whats-svnit-specific) before generalising on `master`.
 
 ---
 
 ## Download
 
-**[⬇ Get the latest APK](https://github.com/aryanjsawant/ProxyMate---University-Attendance-Marker/releases/latest)**
+**[⬇ Latest APK — GitHub Releases](https://github.com/aryanjsawant/ProxyMate---University-Attendance-Marker/releases?q=svnit&expanded=true)**
 
-| File | Size | Use it if |
-|---|---|---|
-| `app-arm64-v8a-release.apk` | ~19 MB | **Start here.** Every phone from ~2017 onward. |
-| `app-release.apk` | ~54 MB | The arm64 one refused to install. Universal, works anywhere. |
-| `app-armeabi-v7a-release.apk` | ~17 MB | Genuinely old 32-bit device. |
+Grab the file ending **`-arm64.apk`** — right for essentially every phone made since 2017.
 
-## Install
+Open it on your phone → Android blocks it → **Allow from this source** → **Install**. If a "harmful app" screen appears, tap **More details → Install anyway**; that is normal for anything not distributed through the Play Store, and is not a signal about this app in particular.
 
-**On the phone.** Open the downloaded file → Android says the source isn't allowed → **Allow from this source** → **Install**. If a "harmful app" screen appears, tap **More details → Install anyway**.
+Releases from this branch are tagged `svnit-v*` so they never collide with the general app's.
 
-**Or over USB, which skips both prompts entirely:**
-
-```bash
-adb install app-arm64-v8a-release.apk
-```
-
-### About the "this app may be harmful" warning
-
-It can't be removed, and it isn't a sign anything is wrong. Two separate prompts are involved:
-
-1. **"Install unknown apps"** — Android requires this for *any* app not installed from a store. Unavoidable by design; it's the sideloading permission itself.
-2. **Play Protect's "unsafe app"** — shown because Google has never scanned this app, not because of anything in it. Google only recognises apps distributed through Play.
-
-Things that are commonly assumed to fix it, and don't:
-
-- **Signing with a proper release key.** Worth doing eventually — it lets you upgrade in place from a different machine, and it's required for Play — but Play Protect warns about *unrecognised* apps regardless of which key signed them.
-- Renaming the package, bumping the version, or re-exporting.
-
-What actually avoids the warning:
-
-- **`adb install`** — the practical answer for personal use. No unknown-sources prompt, and Play Protect normally stays quiet.
-- **Publishing to Play** (even a closed testing track) — a $25 one-time developer account plus review. Real, but heavy for an app you're sideloading onto your own phone.
-
-Turning Play Protect off entirely also works, but it weakens scanning for *every* app on the phone, so it's a bad trade for this.
+> **Installs alongside the general build.** This one is `com.aryan.proxymate`, the general app is `com.aryan.proxymate.general`, so you can run both.
 
 ---
 
-> **Publishing a release:** `build/` is gitignored, so APKs never enter git history. After `flutter build apk --release --split-per-abi`, create a GitHub release and attach the files from `build/app/outputs/flutter-apk/` — that's what the download link above resolves to.
+## Setup, for an SVNIT B.Tech AI student
+
+The class timetable is already in the app. Setup is three screens:
+
+1. **Electives** — pick your side of each shared slot: B (AC / PGM), C (IR / IoT & EC), D (AIFS / ABSS), E (ILLM / Agentic AI), and whether you take the honours AI411.
+2. **Lab batch** — Batch-I (Monday 2:00–3:50) or Batch-II (Monday 4:00–5:50).
+3. **Term dates** — everything from the start date to today is filled in as present the moment you finish.
+
+Then correct the classes you actually missed from History.
 
 ---
 
@@ -219,7 +200,7 @@ Everything below is confined to **`lib/data/seed_tt.dart`** plus a handful of re
 - Elective pairs: B = AC/PGM, C = IR/IoT&EC, D = AIFS/ABSS, E = ILLM/Agentic AI
 - `seedDefaultEnrolledCourseIds` — the branch owner's own registration
 - Batch-I / Batch-II for the Monday IMAES lab
-- Copy in `setup_wizard.dart` referencing "M.Tech AI timetable"
+- Copy in `setup_wizard.dart` referencing "B.Tech AI timetable"
 - `timetable_fidelity_test.dart`, which asserts this exact timetable
 
 **To generalise on `master`**, the work is roughly:

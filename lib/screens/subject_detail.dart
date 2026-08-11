@@ -192,7 +192,7 @@ class _CountsCard extends ConsumerWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Counted in periods, so a 2-hour lab weighs 2.',
+                'Each class counts once, however long it runs.',
                 style: TextStyle(
                   fontSize: 11,
                   color: context.colors.onSurfaceVariant,
