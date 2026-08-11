@@ -7,7 +7,7 @@ name: Release
 # binaries never have to be committed to the repo.
 on:
   push:
-    tags: ['v*']
+    tags: ['svnit-v*']
   workflow_dispatch:
 
 permissions:
