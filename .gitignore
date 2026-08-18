@@ -46,3 +46,8 @@ app.*.map.json
 
 # Release binaries live on GitHub Releases, not in git history.
 /apk/
+
+# Signing secrets — never commit.
+/android/key.properties
+*.jks
+*.keystore

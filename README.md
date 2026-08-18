@@ -216,6 +216,26 @@ docs/          screenshots
 - No iOS build. The engine is portable; iOS needs a Mac, and free-provisioning sideloads expire after 7 days.
 - Deleting a subject deletes its attendance history. The confirm dialog names exactly what goes, but there's no undo.
 
+## Publishing
+
+`docs/PUBLISHING.md` is the full Play Store checklist — signing key, app bundle, store listing copy, data-safety answers, and the closed-test requirement that gates production access.
+
+Store assets are generated, not hand-exported, so they can't drift from the app:
+
+```bash
+dart run tool/make_icon.dart            # launcher icon
+dart run tool/make_store_graphics.dart  # 512px listing icon + feature graphic
+flutter test --update-goldens --tags screenshots
+```
+
+Release signing reads `android/key.properties` (gitignored). Without it, release builds fall back to the debug key so a fresh clone can still build a sideloadable APK — Play rejects those, so an upload build simply requires the file to exist. Verify which key was used:
+
+```bash
+apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
+```
+
+---
+
 ## Branches
 
 - **`master`** — the general app, for any college.

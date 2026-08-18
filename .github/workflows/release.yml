@@ -44,6 +44,13 @@ jobs:
       - name: Build APKs
         run: flutter build apk --release --split-per-abi
 
+      # The Play upload artefact. Built unsigned here — CI has no keystore, and
+      # putting one in repo secrets is a bigger risk than signing locally for
+      # the handful of uploads this app will see. Attached so the exact commit
+      # that produced a release is reproducible.
+      - name: Build app bundle
+        run: flutter build appbundle --release
+
       - name: Name the artifacts
         run: |
           mkdir -p dist

@@ -1,0 +1,18 @@
+# Copy to android/key.properties and fill in. That file is gitignored:
+# a keystore or its passwords in a public repo means anyone can ship updates
+# signed as you.
+#
+# Create the keystore first:
+#
+#   keytool -genkey -v -keystore %USERPROFILE%\proxymate-upload.jks \
+#     -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Back the .jks up somewhere that is not this machine. With Play App Signing
+# enabled this is only your *upload* key and Google can reset it if lost, but
+# losing it still means a support round-trip.
+
+storePassword=
+keyPassword=
+keyAlias=upload
+# Absolute path, or relative to the android/ directory.
+storeFile=../../proxymate-upload.jks
