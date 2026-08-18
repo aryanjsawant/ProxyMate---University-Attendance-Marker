@@ -10,7 +10,7 @@ Every scheduled class is marked present the moment it ends. You open the app onl
 
 ## Download
 
-**[⬇ Latest APK — GitHub Releases](https://github.com/aryanjsawant/ProxyMate---University-Attendance-Marker/releases?q=svnit&expanded=true)**
+**[⬇ Latest APK — GitHub Releases](https://github.com/aryanjsawant/ProxyMate-University-Attendance-Marker/releases?q=svnit&expanded=true)**
 
 Grab the file ending **`-arm64.apk`** — right for essentially every phone made since 2017.
 
@@ -18,7 +18,9 @@ Open it on your phone → Android blocks it → **Allow from this source** → *
 
 Releases from this branch are tagged `svnit-v*` so they never collide with the general app's.
 
-> **Installs alongside the general build.** This one is `com.aryan.proxymate`, the general app is `com.aryan.proxymate.general`, so you can run both.
+> **Installs alongside the general build.** This one is `com.aryan.proxymate.svnit`; the general app is `com.aryan.proxymate`. Android keys apps by that id, so both run at once.
+>
+> If you installed `svnit-v1.0.0`, uninstall it before installing a later build — the id changed, so Android treats the new one as a separate app.
 
 ---
 

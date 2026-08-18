@@ -24,7 +24,10 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.aryan.proxymate"
+        // The general app on master takes the plain com.aryan.proxymate,
+        // because that is what gets published to Play and the id is permanent
+        // there. This fork is suffixed so both still install side by side.
+        applicationId = "com.aryan.proxymate.svnit"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
