@@ -30,7 +30,7 @@ class HomeScreen extends ConsumerWidget {
     final now = ref.watch(clockProvider);
     final today = ref.watch(todayProvider);
     final stats = ref.watch(allStatsProvider);
-    final extras = engine.dayView(state, now).extras;
+    final extras = engine.dayView(state, now, now: now).extras;
 
     return Scaffold(
       appBar: AppBar(

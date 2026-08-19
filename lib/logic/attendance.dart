@@ -145,18 +145,48 @@ AppState addExtraClass(
   ],
 );
 
-/// Every record already written for [date], plus the scheduled occurrences that
-/// have no record yet. This is what the day editor and Home render.
+/// What to render for [date] in the day editor and on Home.
+///
+/// **A past day shows what was recorded, not what the timetable says today.**
+/// Expanding the current timetable over history invents classes that never
+/// happened: add a Friday class this week and it would otherwise appear on
+/// every previous Friday, showing a default "Present" that no record backs and
+/// that catch-up will never create — because catch-up only walks forward from
+/// `lastGeneratedDate`. The numbers stayed right; the screen lied.
+///
+/// Today and future dates still expand the timetable, because that is exactly
+/// when there is no record yet and the user needs the row to mark.
 ({List<Occurrence> scheduled, List<AttendanceRecord> extras}) dayView(
   AppState state,
-  DateTime date,
-) {
+  DateTime date, {
+  DateTime? now,
+}) {
   final d = dateOnly(date);
-  final scheduled = occurrencesOn(state, d);
+  final today = dateOnly(now ?? DateTime.now());
+  final all = occurrencesOn(state, d);
+
+  final List<Occurrence> scheduled;
+  if (d.isBefore(today)) {
+    final recordedSlotIds = {
+      for (final r in state.records)
+        if (r.slotId != null && dateOnly(r.date) == d) r.slotId!,
+    };
+    scheduled = all.where((o) => recordedSlotIds.contains(o.slot.id)).toList();
+  } else {
+    scheduled = all;
+  }
+
+  // Anything recorded for this day that no scheduled row covers: ad-hoc extra
+  // classes, and records whose slot was later deleted or moved to another day.
+  // Both must stay visible and editable, or history would silently vanish.
+  final covered = {for (final o in scheduled) o.slot.id};
   final extras = [
     for (final r in state.records)
-      if (r.slotId == null && dateOnly(r.date) == d) r,
+      if (dateOnly(r.date) == d &&
+          (r.slotId == null || !covered.contains(r.slotId)))
+        r,
   ];
+
   return (scheduled: scheduled, extras: extras);
 }
 

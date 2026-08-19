@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proxymate/logic/attendance.dart';
+import 'package:proxymate/logic/dates.dart';
 import 'package:proxymate/logic/schedule.dart';
 import 'package:proxymate/logic/stats.dart';
 import 'package:proxymate/models/app_state.dart';
@@ -342,6 +343,84 @@ void main() {
       expect(restored.term, isNull);
       expect(restored.subjects, isEmpty);
       expect(restored.isConfigured, isFalse);
+    });
+  });
+
+  group('history does not follow later timetable edits', () {
+    // Reported from real use: a class added to Friday this week appeared on
+    // every *previous* Friday too, showing a default "Present". The records
+    // were untouched -- catch-up only walks forward -- so the numbers stayed
+    // right while the screen showed classes that never happened.
+    final laterMonday = monday.add(const Duration(days: 7));
+
+    AppState withNewMondayClass() {
+      // A full week is recorded, then a new Monday entry is added afterwards.
+      var s = catchUp(testState(), mondayNight);
+      return s.copyWith(
+        slots: [
+          ...s.slots,
+          Slot(
+            id: 'added-later',
+            subjectId: 'os',
+            weekday: DateTime.monday,
+            startMin: at(16),
+            endMin: at(17),
+          ),
+        ],
+      );
+    }
+
+    test('a newly added class does not appear on past days', () {
+      final s = withNewMondayClass();
+      final view = dayView(s, monday, now: laterMonday);
+
+      expect(
+        view.scheduled.any((o) => o.slot.id == 'added-later'),
+        isFalse,
+        reason: 'it did not exist on that date',
+      );
+      expect(
+        view.extras.any((r) => r.slotId == 'added-later'),
+        isFalse,
+      );
+    });
+
+    test('but it does appear today, where it can still be marked', () {
+      final s = withNewMondayClass();
+      final view = dayView(s, laterMonday, now: laterMonday);
+      expect(view.scheduled.any((o) => o.slot.id == 'added-later'), isTrue);
+    });
+
+    test('past days still show everything that was recorded', () {
+      final s = withNewMondayClass();
+      final view = dayView(s, monday, now: laterMonday);
+      final recorded = s.records.where((r) => dateOnly(r.date) == monday);
+
+      expect(
+        view.scheduled.length + view.extras.length,
+        recorded.length,
+        reason: 'every record for that day is rendered exactly once',
+      );
+    });
+
+    test('a record whose slot was deleted stays visible and editable', () {
+      var s = catchUp(testState(), mondayNight);
+      s = s.copyWith(slots: [for (final x in s.slots) if (x.id != 's1') x]);
+
+      final view = dayView(s, monday, now: laterMonday);
+      expect(
+        view.extras.any((r) => r.slotId == 's1'),
+        isTrue,
+        reason: 'history must not vanish when the timetable changes',
+      );
+    });
+
+    test('the maths is unaffected either way', () {
+      // The bug was cosmetic; this pins that it stays cosmetic.
+      final before = statsFor(catchUp(testState(), mondayNight), 'os');
+      final after = statsFor(withNewMondayClass(), 'os');
+      expect(after.attended, before.attended);
+      expect(after.held, before.held);
     });
   });
 }

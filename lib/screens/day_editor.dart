@@ -21,7 +21,7 @@ class DayEditorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appProvider);
     final day = dateOnly(date);
-    final view = engine.dayView(state, day);
+    final view = engine.dayView(state, day, now: ref.watch(clockProvider));
 
     // Far-future reference time so past classes render as settled rather than
     // "upcoming" — this screen is about history, not anticipation.
