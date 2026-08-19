@@ -134,8 +134,10 @@ SubjectStats statsFor(
   DateTime? now,
   Map<String, int>? precomputedRemaining,
 }) {
-  final comp = state.subjectById(subjectId);
-  final target = comp?.targetPercent ?? state.term?.defaultTarget ?? 0.75;
+  // One target for the whole term. A per-subject override existed in the model
+  // but was never surfaced anywhere, so it could only ever hold the global
+  // value while implying otherwise.
+  final target = state.term?.defaultTarget ?? 0.75;
 
   var attended = 0;
   var held = 0;

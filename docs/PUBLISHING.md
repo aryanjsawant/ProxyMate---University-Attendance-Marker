@@ -97,7 +97,7 @@ BUILT FOR HOW COLLEGES ACTUALLY WORK
 • Cancelled classes, which count against neither side
 • Whole days off, and date ranges for mid-term breaks
 • Any past record editable, any day, any time
-• Per-subject targets, because not every course wants 75%
+• One attendance target for the term, adjustable if yours is not 75%
 
 SET IT UP MID-TERM
 

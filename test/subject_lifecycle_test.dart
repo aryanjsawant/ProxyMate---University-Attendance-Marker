@@ -142,12 +142,14 @@ void main() {
       expect(statsFor(s, 'x').hasData, isFalse);
     });
 
-    test('changing the target changes only that subject', () {
+    test('the target is term-wide and applies to every subject', () {
       final c = containerWith(testState());
-      c.read(appProvider.notifier).setTargetForSubject('os', 0.9);
+      final term = c.read(appProvider).term!;
+      c.read(appProvider.notifier).updateTerm(term.copyWith(defaultTarget: 0.9));
 
-      expect(c.read(appProvider).subjectById('os')!.targetPercent, 0.9);
-      expect(c.read(appProvider).subjectById('maths')!.targetPercent, 0.75);
+      for (final s in c.read(appProvider).subjects) {
+        expect(statsFor(c.read(appProvider), s.id).target, 0.9, reason: s.name);
+      }
     });
   });
 

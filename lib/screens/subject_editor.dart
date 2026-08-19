@@ -214,10 +214,6 @@ class _SubjectEditorSheetState extends ConsumerState<_SubjectEditorSheet> {
             color: _color,
             faculty: faculty.isEmpty ? null : faculty,
             room: room.isEmpty ? null : room,
-            targetPercent:
-                widget.existing?.targetPercent ??
-                ref.read(appProvider).term?.defaultTarget ??
-                0.75,
           ),
         );
     Navigator.of(context).pop();

@@ -80,7 +80,6 @@ Plus the one nobody handles: **teachers ignore the timetable.** Extra classes, c
 - **The number you actually want** — *"You can miss 3 more"*, or *"Attend next 4 to reach 75%"*.
 - **Set it up mid-semester.** Everything from your start date to today is filled in the moment you finish setup.
 - **Fully editable history.** Extra classes, cancelled classes, whole days off, date ranges.
-- **Per-subject targets**, because not every college wants 75%.
 - **Completely offline.** No account, no server — the release build declares **no internet permission at all**.
 
 ---

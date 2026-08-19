@@ -123,30 +123,6 @@ class SettingsScreen extends ConsumerWidget {
                       },
               ),
               const Divider(indent: 16, endIndent: 16),
-              ListTile(
-                leading: const Icon(Icons.beach_access_outlined),
-                title: const Text('Holidays'),
-                subtitle: Text(
-                  '${term?.holidays.length ?? 0} days excluded',
-                ),
-                trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: term == null
-                    ? null
-                    : () async {
-                        final picked = await showDateRangePicker(
-                          context: context,
-                          firstDate: term.startDate,
-                          lastDate: DateTime(term.startDate.year + 2),
-                          helpText: 'Days with no classes',
-                        );
-                        if (picked != null) {
-                          ref
-                              .read(appProvider.notifier)
-                              .markRangeAsNoClass(picked.start, picked.end);
-                        }
-                      },
-              ),
-              const Divider(indent: 16, endIndent: 16),
               _TargetTile(),
             ],
           ),
@@ -433,6 +409,7 @@ class _TargetTile extends ConsumerWidget {
     return ListTile(
       leading: const Icon(Icons.percent),
       title: const Text('Attendance target'),
+      subtitle: const Text('Applies to every subject'),
       trailing: DropdownButton<double>(
         value: target,
         underline: const SizedBox.shrink(),
@@ -447,11 +424,9 @@ class _TargetTile extends ConsumerWidget {
         ],
         onChanged: (v) {
           if (v == null || state.term == null) return;
-          final notifier = ref.read(appProvider.notifier);
-          notifier.updateTerm(state.term!.copyWith(defaultTarget: v));
-          for (final s in state.subjects) {
-            notifier.setTargetForSubject(s.id, v);
-          }
+          ref
+              .read(appProvider.notifier)
+              .updateTerm(state.term!.copyWith(defaultTarget: v));
         },
       ),
     );

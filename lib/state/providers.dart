@@ -102,15 +102,6 @@ class AppController extends Notifier<AppState> {
 
   void updateSettings(Settings s) => _commit(state.copyWith(settings: s));
 
-  void setTargetForSubject(String subjectId, double target) => _commit(
-    state.copyWith(
-      subjects: [
-        for (final s in state.subjects)
-          if (s.id == subjectId) s.copyWith(targetPercent: target) else s,
-      ],
-    ),
-  );
-
   // ---- subjects ------------------------------------------------------------
 
   void upsertSubject(Subject subject) {

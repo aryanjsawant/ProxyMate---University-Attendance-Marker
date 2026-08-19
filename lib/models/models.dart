@@ -16,7 +16,6 @@ class Subject {
   final int color; // ARGB
   final String? faculty; // optional
   final String? room; // optional default; a slot can override
-  final double targetPercent; // 0.75
 
   const Subject({
     required this.id,
@@ -24,7 +23,6 @@ class Subject {
     required this.color,
     this.faculty,
     this.room,
-    this.targetPercent = 0.75,
   });
 
   /// What fits on a crowded row. Long names get their first two words.
@@ -44,14 +42,12 @@ class Subject {
     bool clearFaculty = false,
     String? room,
     bool clearRoom = false,
-    double? targetPercent,
   }) => Subject(
     id: id,
     name: name ?? this.name,
     color: color ?? this.color,
     faculty: clearFaculty ? null : (faculty ?? this.faculty),
     room: clearRoom ? null : (room ?? this.room),
-    targetPercent: targetPercent ?? this.targetPercent,
   );
 
   Map<String, dynamic> toJson() => {
@@ -60,7 +56,6 @@ class Subject {
     'color': color,
     if (faculty != null) 'faculty': faculty,
     if (room != null) 'room': room,
-    'targetPercent': targetPercent,
   };
 
   factory Subject.fromJson(Map<String, dynamic> j) => Subject(
@@ -69,7 +64,6 @@ class Subject {
     color: j['color'] as int,
     faculty: j['faculty'] as String?,
     room: j['room'] as String?,
-    targetPercent: (j['targetPercent'] as num?)?.toDouble() ?? 0.75,
   );
 }
 
