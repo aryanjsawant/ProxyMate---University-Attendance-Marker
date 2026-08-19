@@ -61,7 +61,6 @@ Color statusColor(BuildContext context, Status status) => switch (status) {
   Status.present => context.risk.safe,
   Status.absent => context.risk.danger,
   Status.cancelled => context.risk.unknown,
-  Status.holiday => context.risk.unknown,
 };
 
 ThemeData buildTheme(Brightness brightness) {

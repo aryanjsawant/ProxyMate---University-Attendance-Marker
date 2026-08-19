@@ -57,9 +57,6 @@ class _SetupWizardState extends ConsumerState<SetupWizard> {
   void _finish() {
     final notifier = ref.read(appProvider.notifier);
 
-    notifier.updateSettings(
-      ref.read(appProvider).settings.copyWith(hasSeenWalkthrough: true),
-    );
     notifier.completeSetup(
       term: Term(
         name: 'Semester',

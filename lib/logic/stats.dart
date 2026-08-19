@@ -143,8 +143,14 @@ SubjectStats statsFor(
   var held = 0;
   var cancelled = 0;
 
+  final term = state.term;
   for (final r in state.records) {
     if (r.subjectId != subjectId) continue;
+    // Setup says "attendance is counted from the start date; anything before
+    // it is ignored", so moving the term window must actually move what
+    // counts. Records outside it are kept — narrowing the term by accident
+    // should be undoable — but they do not feed the percentage.
+    if (term != null && !term.covers(r.date)) continue;
     if (r.status.countsTowardHeld) {
       held += r.units;
       if (r.status.countsTowardAttended) attended += r.units;

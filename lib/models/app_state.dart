@@ -136,16 +136,11 @@ class Settings {
   final bool nudgeEnabled;
   final bool weeklySummaryEnabled;
 
-  /// Set once the how-it-works walkthrough has been seen, so it never
-  /// reappears — but it stays reachable from More.
-  final bool hasSeenWalkthrough;
-
   const Settings({
     this.nudgeOffsetMinutes = 30,
     this.dayEndsAtMinutes = 18 * 60,
     this.nudgeEnabled = true,
     this.weeklySummaryEnabled = true,
-    this.hasSeenWalkthrough = false,
   });
 
   Settings copyWith({
@@ -153,13 +148,11 @@ class Settings {
     int? dayEndsAtMinutes,
     bool? nudgeEnabled,
     bool? weeklySummaryEnabled,
-    bool? hasSeenWalkthrough,
   }) => Settings(
     nudgeOffsetMinutes: nudgeOffsetMinutes ?? this.nudgeOffsetMinutes,
     dayEndsAtMinutes: dayEndsAtMinutes ?? this.dayEndsAtMinutes,
     nudgeEnabled: nudgeEnabled ?? this.nudgeEnabled,
     weeklySummaryEnabled: weeklySummaryEnabled ?? this.weeklySummaryEnabled,
-    hasSeenWalkthrough: hasSeenWalkthrough ?? this.hasSeenWalkthrough,
   );
 
   Map<String, dynamic> toJson() => {
@@ -167,7 +160,6 @@ class Settings {
     'dayEndsAtMinutes': dayEndsAtMinutes,
     'nudgeEnabled': nudgeEnabled,
     'weeklySummaryEnabled': weeklySummaryEnabled,
-    'hasSeenWalkthrough': hasSeenWalkthrough,
   };
 
   factory Settings.fromJson(Map<String, dynamic> j) => Settings(
@@ -175,6 +167,5 @@ class Settings {
     dayEndsAtMinutes: j['dayEndsAtMinutes'] as int? ?? 18 * 60,
     nudgeEnabled: j['nudgeEnabled'] as bool? ?? true,
     weeklySummaryEnabled: j['weeklySummaryEnabled'] as bool? ?? true,
-    hasSeenWalkthrough: j['hasSeenWalkthrough'] as bool? ?? false,
   );
 }

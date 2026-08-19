@@ -149,18 +149,20 @@ class Slot {
   );
 }
 
-enum Status { present, absent, cancelled, holiday }
+/// A day off is not a status: [markRangeAsNoClass] adds the dates to the term's
+/// holiday set so nothing generates for them at all. A `holiday` value existed
+/// here but nothing ever produced one.
+enum Status { present, absent, cancelled }
 
 extension StatusX on Status {
   String get label => switch (this) {
     Status.present => 'Present',
     Status.absent => 'Absent',
     Status.cancelled => 'Cancelled',
-    Status.holiday => 'Holiday',
   };
 
-  /// Cancelled and holiday sessions never happened, so they leave both the
-  /// numerator and the denominator untouched.
+  /// A cancelled class never happened, so it leaves both the numerator and the
+  /// denominator untouched.
   bool get countsTowardHeld => this == Status.present || this == Status.absent;
   bool get countsTowardAttended => this == Status.present;
 }
@@ -253,6 +255,15 @@ class Term {
   });
 
   bool isHoliday(DateTime d) => holidays.contains(dateOnly(d));
+
+  /// Whether [d] falls inside the term. Used both to decide what to generate
+  /// and what to count, so the two can never disagree.
+  bool covers(DateTime d) {
+    final day = dateOnly(d);
+    if (day.isBefore(dateOnly(startDate))) return false;
+    final end = endDate;
+    return end == null || !day.isAfter(dateOnly(end));
+  }
 
   Term copyWith({
     String? name,

@@ -98,7 +98,21 @@ class AppController extends Notifier<AppState> {
     );
   }
 
-  void updateTerm(Term term) => _commit(state.copyWith(term: term));
+  /// Catch-up resumes from `lastGeneratedDate`, so pulling the start date
+  /// backwards would otherwise leave the newly covered days permanently empty:
+  /// the window has already moved past them. Rewind the marker and replay.
+  void updateTerm(Term term) {
+    final generated = state.lastGeneratedDate;
+    final newStart = dateOnly(term.startDate);
+    final rewound = generated != null && newStart.isBefore(generated)
+        ? newStart
+        : generated;
+
+    _commit(state.copyWith(term: term, lastGeneratedDate: rewound));
+    // refreshNow owns the clock for the whole controller; reading DateTime.now()
+    // here as well would leave the two disagreeing.
+    refreshNow();
+  }
 
   void updateSettings(Settings s) => _commit(state.copyWith(settings: s));
 
@@ -215,7 +229,11 @@ class AppController extends Notifier<AppState> {
   /// Copy every slot from one weekday onto another — the single biggest
   /// time-saver when entering a timetable by hand.
   void copyDay(int fromWeekday, int toWeekday) {
-    final source = state.slots.where((s) => s.weekday == fromWeekday);
+    // Copying a day onto itself would replace every slot with an identical one
+    // under a fresh id, silently orphaning every record that pointed at the
+    // old ones. The menu never offers it; this makes it harmless anyway.
+    if (fromWeekday == toWeekday) return;
+    final source = state.slots.where((s) => s.weekday == fromWeekday).toList();
     final kept = state.slots.where((s) => s.weekday != toWeekday);
     _commit(
       state.copyWith(
