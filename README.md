@@ -104,7 +104,7 @@ So not opening the app for a week is correct by construction: reopening backfill
 ### The model
 
 ```
-Subject   name, colour, optional teacher/room, target %   ← the unit of accounting
+Subject   name, colour, optional teacher/room            ← the unit of accounting
 Slot      subject + weekday + OPTIONAL start/end time     ← one weekly entry
 Record    what actually happened: status, manual?, note
 Term      start, optional end, target %, holidays
@@ -135,7 +135,7 @@ Local only; scheduled by Android's `AlarmManager`, not sent from anywhere.
 
 | When | What |
 |---|---|
-| After your last class | *"Marked you present for 5 classes. Miss any?"* — the safety net that makes assuming-present trustworthy. |
+| After your last class | *"You had 5 classes today. Missed any and not marked it yet?"* — the safety net that makes assuming-present trustworthy. |
 | The instant you drop below target | *"Operating Systems dropped below 75%"* |
 | Sunday evening | Weekly summary |
 
@@ -147,7 +147,7 @@ Attendance correctness never depends on these firing.
 
 ```bash
 flutter pub get
-flutter test --exclude-tags screenshots   # 83 tests
+flutter test --exclude-tags screenshots   # 113 tests
 flutter analyze
 flutter run                               # phone on USB debugging
 
@@ -193,7 +193,7 @@ lib/
   state/       Riverpod providers
   screens/     home · subjects · history · settings · editors
   widgets/     the P/A/C toggle, class rows, standings
-test/          83 tests + the screenshot generator
+test/          113 tests + the screenshot generator
 docs/          screenshots
 ```
 
