@@ -123,7 +123,14 @@ void main() {
     });
 
     test('marking a whole day cancelled touches every class on it', () {
-      final s = markWholeDay(testState(), monday, Status.cancelled);
+      // `now` is explicit: without it this leaned on the real wall clock, so
+      // the same test meant different things depending on the date it ran.
+      final s = markWholeDay(
+        testState(),
+        monday,
+        Status.cancelled,
+        now: DateTime(2026, 8, 3, 8),
+      );
       expect(s.records, hasLength(4));
       expect(s.records.every((r) => r.status == Status.cancelled), isTrue);
     });

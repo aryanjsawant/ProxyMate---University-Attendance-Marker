@@ -158,10 +158,68 @@ class DayEditorScreen extends ConsumerWidget {
           initialDateRange: DateTimeRange(start: day, end: day),
           helpText: 'Days with no classes',
         );
-        if (picked != null) {
-          notifier.markRangeAsNoClass(picked.start, picked.end);
+        if (picked != null && context.mounted) {
+          await _confirmNoClassRange(context, ref, picked);
         }
     }
+  }
+
+  /// Marking a range as no-class deletes every record inside it, including
+  /// absences the user deliberately logged, and there is no undo. The count is
+  /// spelled out rather than asking "are you sure?" in the abstract — the
+  /// number is the whole reason to hesitate.
+  Future<void> _confirmNoClassRange(
+    BuildContext context,
+    WidgetRef ref,
+    DateTimeRange range,
+  ) async {
+    final state = ref.read(appProvider);
+    final days = eachDay(range.start, range.end).toSet();
+    final doomed = state.records
+        .where((r) => days.contains(dateOnly(r.date)))
+        .toList();
+    final marked = doomed.where((r) => r.isManual).length;
+
+    final detail = StringBuffer(
+      '${days.length} ${days.length == 1 ? 'day' : 'days'} will be treated as '
+      'having no classes, and nothing will be recorded for them.',
+    );
+    if (doomed.isNotEmpty) {
+      detail.write(
+        '\n\nThis deletes ${doomed.length} existing '
+        '${doomed.length == 1 ? 'record' : 'records'}',
+      );
+      if (marked > 0) {
+        detail.write(
+          ', including $marked you marked yourself',
+        );
+      }
+      detail.write('. It cannot be undone.');
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Mark as no-class?'),
+        content: Text(detail.toString()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: doomed.isEmpty ? null : context.risk.danger,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(doomed.isEmpty ? 'Mark' : 'Delete & mark'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    ref.read(appProvider.notifier).markRangeAsNoClass(range.start, range.end);
   }
 }
 

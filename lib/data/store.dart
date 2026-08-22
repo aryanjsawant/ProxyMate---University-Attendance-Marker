@@ -12,14 +12,18 @@ import '../models/app_state.dart';
 class Store {
   static const fileName = 'proxymate.json';
 
-  Future<File> _file() async {
+  /// The save file. Overridable so tests can exercise the write path against a
+  /// temp directory — `getApplicationDocumentsDirectory` needs a platform
+  /// channel that `flutter test` does not provide.
+  @visibleForTesting
+  Future<File> resolveFile() async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}${Platform.pathSeparator}$fileName');
   }
 
   Future<AppState?> load() async {
     try {
-      final f = await _file();
+      final f = await resolveFile();
       if (!await f.exists()) return null;
       final raw = await f.readAsString();
       if (raw.trim().isEmpty) return null;
@@ -31,17 +35,44 @@ class Store {
     }
   }
 
-  /// Written to a temp file and renamed, so a crash mid-write can't leave a
-  /// half-serialized document where the semester's records used to be.
+  /// Only ever one write in flight, and only ever the newest state.
   ///
-  /// Callers treat this as fire-and-forget — in-memory state is what the UI
-  /// renders, and a tap must never block on the disk. That makes swallowing
-  /// failures here the right call rather than a lazy one: an uncaught error in
-  /// a detached future would take down the zone instead of just losing one
-  /// write, and the next commit rewrites the whole document anyway.
-  Future<void> save(AppState state) async {
+  /// Callers are fire-and-forget, so rapid marking used to overlap several
+  /// writes onto one fixed temp path; interleaved writes could rename a
+  /// half-written document into place, defeating the very guard below.
+  /// Coalescing is correct here because each save is the whole document —
+  /// an older one has nothing the newer lacks.
+  AppState? _pending;
+  Future<void>? _inFlight;
+
+  Future<void> save(AppState state) {
+    _pending = state;
+    return _inFlight ??= _drain();
+  }
+
+  Future<void> _drain() async {
     try {
-      final f = await _file();
+      while (_pending != null) {
+        final next = _pending!;
+        _pending = null;
+        await _writeAtomically(next);
+      }
+    } finally {
+      _inFlight = null;
+      // A save queued while the finally block ran would otherwise sit forever.
+      if (_pending != null) _inFlight = _drain();
+    }
+  }
+
+  /// Written to a temp file and renamed, so a crash mid-write cannot leave a
+  /// half-serialized document where the term's records used to be.
+  ///
+  /// Failures are swallowed deliberately: callers are fire-and-forget, so an
+  /// uncaught error here would take down the zone rather than lose one write,
+  /// and the next save rewrites the whole document anyway.
+  Future<void> _writeAtomically(AppState state) async {
+    try {
+      final f = await resolveFile();
       final tmp = File('${f.path}.tmp');
       await tmp.writeAsString(encode(state), flush: true);
       await tmp.rename(f.path);

@@ -195,8 +195,10 @@ class AppController extends Notifier<AppState> {
     checkRisk: true,
   );
 
-  void markWholeDay(DateTime date, Status status) =>
-      _commit(engine.markWholeDay(state, date, status), checkRisk: true);
+  void markWholeDay(DateTime date, Status status) => _commit(
+    engine.markWholeDay(state, date, status, now: ref.read(clockProvider)),
+    checkRisk: true,
+  );
 
   void markRangeAsNoClass(DateTime from, DateTime to) =>
       _commit(engine.markRangeAsNoClass(state, from, to));

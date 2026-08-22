@@ -28,8 +28,15 @@ AppState catchUp(AppState state, DateTime now) {
   if (term == null) return state;
 
   final today = dateOnly(now);
-  final from = dateOnly(state.lastGeneratedDate ?? term.startDate);
-  if (from.isAfter(today)) return state;
+  var from = dateOnly(state.lastGeneratedDate ?? term.startDate);
+
+  // A stamp in the future means the phone's clock was wrong when it was
+  // written -- a flat battery, a manual date change, travel. Bailing out here
+  // used to be permanent: the marker was never repaired, so attendance simply
+  // stopped recording with nothing in the UI to show why. That is the exact
+  // failure the no-background-service design exists to prevent, so clamp and
+  // carry on rather than give up.
+  if (from.isAfter(today)) from = today;
 
   final existing = <String>{
     for (final r in state.records)
@@ -192,9 +199,19 @@ AppState addExtraClass(
 
 /// Mark an entire day cancelled (strike, faculty absent) or a holiday. Applies
 /// to every scheduled class that day and is always manual.
-AppState markWholeDay(AppState state, DateTime date, Status status) {
+AppState markWholeDay(
+  AppState state,
+  DateTime date,
+  Status status, {
+  DateTime? now,
+}) {
   var s = state;
-  for (final occ in occurrencesOn(state, date)) {
+  // Goes through dayView, not occurrencesOn. Expanding the current timetable
+  // over a past date would write *real records* for classes that never met --
+  // add a Friday class this week and "mark everything present" on a previous
+  // Friday would invent attendance for it. dayView already restricts a past
+  // day to what was actually recorded.
+  for (final occ in dayView(state, date, now: now).scheduled) {
     s = setOccurrenceStatus(s, occ, status);
   }
   return s;
